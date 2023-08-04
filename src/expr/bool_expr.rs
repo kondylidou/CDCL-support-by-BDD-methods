@@ -1,6 +1,8 @@
-use std::{ops::Not, cmp::Ordering};
+use std::{cmp::Ordering, ops::Not};
 
-use crate::{bdd::Bdd, bdd_util::BddVar, expr::bool_expr::Expr::*, variable_ordering::var_ordering};
+use crate::{
+    bdd::Bdd, bdd_util::BddVar, expr::bool_expr::Expr::*, variable_ordering::var_ordering,
+};
 
 /// Recursive implementation of boolean expression.
 #[derive(Clone, Debug, Eq, Hash, Ord)]
@@ -268,7 +270,11 @@ impl Expr {
     ///
     /// *Panics*:
     /// - Variable wasn't found in variable vector.
-    pub fn to_bdd(&self, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
+    pub fn to_bdd(
+        &self,
+        variables: &Vec<BddVar>,
+        ordering: &std::collections::HashMap<i32, usize>,
+    ) -> Bdd {
         // The construction of a Bdd from a boolean expression proceeds
         // as in the construction of the if-then-else Normalform. An ordering
         // of the variables is fixed. Using the shannon expansion a node
@@ -333,7 +339,10 @@ impl Expr {
     // It finds the the highest order variable in the clause
     // to be able to sort it afterwards in the correct bucket
     // indexing this variable.
-    pub fn find_highest_order(&self, ordering: &std::collections::HashMap<i32, usize>) -> (bool, usize) {
+    pub fn find_highest_order(
+        &self,
+        ordering: &std::collections::HashMap<i32, usize>,
+    ) -> (bool, usize) {
         let (mut acc_pol, mut acc_idx) = (false, 0);
         for (pol, var) in self.to_vars_with_polarities() {
             let order = *ordering.get(&var).unwrap();
@@ -375,31 +384,39 @@ impl PartialOrd for Expr {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
             (Const(v1), Const(v2)) => {
-                if v1.eq(&v2) { Some(Ordering::Equal) } 
-                else if *v1 { Some(Ordering::Greater) }
-                else { Some(Ordering::Less) }
-            },
+                if v1.eq(&v2) {
+                    Some(Ordering::Equal)
+                } else if *v1 {
+                    Some(Ordering::Greater)
+                } else {
+                    Some(Ordering::Less)
+                }
+            }
             (Const(_), _) => Some(Ordering::Less),
             (_, Const(_)) => Some(Ordering::Greater),
             (Var(v1), Var(v2)) => {
-                if v1.eq(&v2) { Some(Ordering::Equal) } 
-                else if v1 < v2 { Some(Ordering::Less) }
-                else { Some(Ordering::Greater) }
-            },
+                if v1.eq(&v2) {
+                    Some(Ordering::Equal)
+                } else if v1 < v2 {
+                    Some(Ordering::Less)
+                } else {
+                    Some(Ordering::Greater)
+                }
+            }
             (Var(_), Expr::Not(_)) => Some(Ordering::Less),
             (Var(_), Or(_, _)) => Some(Ordering::Less),
             (Expr::Not(_), Var(_)) => Some(Ordering::Greater),
             (Expr::Not(in1), Expr::Not(in2)) => in1.partial_cmp(&in2),
-            (Expr::Not(_), Or(_, _)) =>  Some(Ordering::Less),
+            (Expr::Not(_), Or(_, _)) => Some(Ordering::Less),
             (Or(_, _), Var(_)) => Some(Ordering::Greater),
             (Or(_, _), Expr::Not(_)) => Some(Ordering::Greater),
             (Or(l1, r1), Or(l2, r2)) => {
                 let l = l1.partial_cmp(&l2);
                 let r = r1.partial_cmp(&r2);
                 l.partial_cmp(&r)
-            },
-            (_, And(_, _)) =>  Some(Ordering::Less),
-            (And(_, _), _) => Some(Ordering::Greater)
+            }
+            (_, And(_, _)) => Some(Ordering::Less),
+            (And(_, _), _) => Some(Ordering::Greater),
         }
     }
 }

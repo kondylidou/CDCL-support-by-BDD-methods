@@ -38,7 +38,10 @@ impl Bucket {
     }
 
     /// This function processes a bucket. It resolves each pair Var[index] AND -Var[index]
-    pub fn process_bucket(&mut self, variables: &Vec<BddVar>) -> Result<(Vec<Expr>, Vec<Expr>), String> {
+    pub fn process_bucket(
+        &mut self,
+        variables: &Vec<BddVar>,
+    ) -> Result<(Vec<Expr>, Vec<Expr>), String> {
         let mut clauses_chosen = Vec::new();
         let mut resolved_clauses = Vec::new();
 

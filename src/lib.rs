@@ -20,6 +20,7 @@ pub mod statistics {
 
 pub mod expr {
     pub mod bool_expr;
+    pub mod parser;
 }
 pub mod parallel {
     pub mod clause_database;

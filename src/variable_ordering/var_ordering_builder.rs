@@ -148,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_unit_propagation() {
+    pub fn test_unit_propagation1() {
         let mut clauses = Vec::new();
         let mut clause1 = vec![-1, 2, 3, 4];
         let clause2 = vec![3, 6, 1];
@@ -178,9 +178,9 @@ mod tests {
 
         let vars = builder.make_variables(clause1, &scores);
 
-        let clauses_set = Expr::parse_clauses(&mut clauses, &vars);
+        let mut clauses_set = Expr::parse_clauses(&mut clauses, &vars);
 
-        let propagated = preprocessing::unit_propagation(clauses_set, vec![Expr::Var(1)]);
+        preprocessing::unit_propagation(&mut clauses_set, vec![Expr::Var(1)]);
 
         let cla1 = Expr::Or(
             Box::new(Expr::Var(2)),
@@ -197,6 +197,59 @@ mod tests {
         res.push(cla3);
         res.push(cla4);
 
-        assert_eq!(propagated, res);
+        assert_eq!(clauses_set, res);
+    }
+
+    #[test]
+    pub fn test_unit_propagation2() {
+        let mut clauses = Vec::new();
+        let mut clause1 = vec![1, 2, 3, 4];
+        let clause2 = vec![3, 6, -1];
+        let clause3 = vec![7, 1, -9];
+        let clause4 = vec![-1];
+
+        clauses.push(clause1.clone());
+        clauses.push(clause2.clone());
+        clauses.push(clause3.clone());
+        clauses.push(clause4.clone());
+
+        let mut builder = BddVarOrderingBuilder::new();
+        let mut scores = HashMap::new();
+        let mut i: f64 = 0.0;
+
+        for clause in &clauses {
+            for var in clause {
+                scores.insert(*var, i);
+                i += 1.1;
+            }
+        }
+        clause1.extend(clause2.iter());
+        clause1.extend(clause3.iter());
+        clause1.extend(clause4.iter());
+        clause1.sort();
+        clause1.dedup();
+
+        let vars = builder.make_variables(clause1, &scores);
+
+        let mut clauses_set = Expr::parse_clauses(&mut clauses, &vars);
+
+        preprocessing::unit_propagation(&mut clauses_set, vec![Expr::Not(Box::new(Expr::Var(1)))]);
+
+        let cla1 = Expr::Or(
+            Box::new(Expr::Var(2)),
+            Box::new(Expr::Or(Box::new(Expr::Var(3)), Box::new(Expr::Var(4)))),
+        );
+        let cla3 = Expr::Or(
+            Box::new(Expr::Var(7)),
+            Box::new(Expr::Not(Box::new(Expr::Var(9)))),
+        );
+        let cla4 = Expr::Not(Box::new(Expr::Var(1)));
+
+        let mut res = Vec::new();
+        res.push(cla1);
+        res.push(cla3);
+        res.push(cla4);
+
+        assert_eq!(clauses_set, res);
     }
 }

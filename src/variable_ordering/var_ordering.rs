@@ -79,10 +79,16 @@ impl BddVarOrdering {
                 }
             }
         }
-        
+
         unit_clauses = unit_clauses.into_iter().unique().collect::<Vec<Expr>>();
-        potential_learnt_clauses = potential_learnt_clauses.into_iter().unique().collect::<Vec<Expr>>();
-        clauses_to_delete = clauses_to_delete.into_iter().unique().collect::<Vec<Expr>>();
+        potential_learnt_clauses = potential_learnt_clauses
+            .into_iter()
+            .unique()
+            .collect::<Vec<Expr>>();
+        clauses_to_delete = clauses_to_delete
+            .into_iter()
+            .unique()
+            .collect::<Vec<Expr>>();
         self.formula
             .drain_filter(|e| clauses_to_delete.contains(&e));
         (unit_clauses, potential_learnt_clauses)
@@ -132,9 +138,8 @@ mod tests {
         let start = Instant::now();
         // as directional resolution returns many unit clauses do
         // unit propagation
-        let propagated_expressions =
-            preprocessing::unit_propagation(var_ordering.formula, unit_clauses);
-        println!("{}", propagated_expressions.len());
+        preprocessing::unit_propagation(&mut var_ordering.formula, unit_clauses);
+        println!("{}", var_ordering.formula.len());
         println!("Time elapsed for unit propagation : {:?}", start.elapsed());
 
         //let start = Instant::now();
