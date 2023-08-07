@@ -15,8 +15,71 @@ pub enum Expr {
 }
 
 impl Expr {
+
     pub fn new_var(var: i32) -> Expr {
         Expr::Var(var)
+    }
+    
+    fn parse_dimacs_cnf_file(file_path: &str) -> Result<Vec<Expr>, String> {
+        let content = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
+        let mut var_map: std::collections::HashMap<i32, Expr> = std::collections::HashMap::new();
+        // this hashmap contains a variable and the arities of the clauses where
+        // this variable is appearing.
+        let mut var_clause_arities: std::collections::HashMap<i32, Vec<usize>> = std::collections::HashMap::new();
+        let mut expressions: Vec<Expr> = Vec::new();
+    
+        for line in content.lines() {
+            let tokens: Vec<&str> = line.trim().split_whitespace().collect();
+            if tokens.is_empty() {
+                continue; // Skip empty lines
+            }
+    
+            match tokens[0] {
+                "c" => continue, // Skip comments
+                "p" => continue, // Skip the problem line, if any
+                _ => {
+                    let clause: Vec<i32> = tokens
+                        .iter()
+                        .take_while(|&&token| token != "0")
+                        .map(|&token| token.parse().expect("Error parsing literal"))
+                        .collect();
+    
+                    expressions.push(Expr::parse_clause(clause, &mut var_map, &mut var_clause_arities));
+                }
+            }
+        }
+    
+        Ok(expressions)
+    }
+    
+     /// This method parses a clause to a boolean expression.
+    fn parse_clause(clause: Vec<i32>, var_map: &mut std::collections::HashMap<i32, Expr>, var_clause_arities: &mut std::collections::HashMap<i32, Vec<usize>>) -> Expr {
+        if clause.len() == 1 {
+            return Expr::parse_lit(clause[0], 1, var_map, var_clause_arities);
+        }
+        Expr::Or(
+            Box::new(Expr::parse_lit(clause[0], clause.len(), var_map, var_clause_arities)),
+            Box::new(Expr::parse_clause(clause[1..].to_vec(), var_map, var_clause_arities)),
+        )
+    }
+    
+    fn parse_lit(lit: i32, clause_len: usize, var_map: &mut std::collections::HashMap<i32, Expr>, var_clause_arities: &mut std::collections::HashMap<i32, Vec<usize>>) -> Expr {
+        // add the clause arity to each variable appearing in this clause
+        if let Some(arities) = var_clause_arities.get(&lit) {
+            arities.push(clause_len);
+        } else {
+            var_clause_arities.insert(lit, vec![clause_len]);
+        }
+    
+        let var_expr = var_map
+            .entry(lit.abs())
+            .or_insert_with(|| Expr::Var(lit.abs()));
+    
+        if lit < 0 {
+            Expr::Not(Box::new(var_expr.clone()))
+        } else {
+            var_expr.clone()
+        }
     }
 
     pub fn get_right(&self) -> Option<&Box<Expr>> {
@@ -109,6 +172,7 @@ impl Expr {
         self.remove_var(var).unwrap()
     }
 
+    /* 
     /// This method creates a set of already parsed clauses.
     pub fn parse_clauses(clauses: &mut Vec<Vec<i32>>, variables: &Vec<BddVar>) -> Vec<Expr> {
         let mut clause_set: Vec<Expr> = Vec::new();
@@ -139,7 +203,7 @@ impl Expr {
         } else {
             Expr::Var(var)
         }
-    }
+    }*/
 
     /// Negate an expression.
     pub fn negate(&self) -> Expr {

@@ -41,8 +41,7 @@ impl Bucket {
     pub fn process_bucket(
         &mut self,
         variables: &Vec<BddVar>,
-    ) -> Result<(Vec<Expr>, Vec<Expr>), String> {
-        let mut clauses_chosen = Vec::new();
+    ) -> Result<Vec<Expr>, String> {
         let mut resolved_clauses = Vec::new();
 
         // no pairs can be built here so we have to move on the next bucket
@@ -50,21 +49,21 @@ impl Bucket {
             return Err("No pairs can be built!".to_string());
         }
 
-        let (vec_pos, vec_neg): (Vec<Expr>, Vec<Expr>) = self.simple_filter_heuristics(10);
-        for (expr1, expr2) in vec_pos.into_iter().cartesian_product(vec_neg.into_iter()) {
+        //let (vec_pos, vec_neg): (Vec<Expr>, Vec<Expr>) = self.simple_filter_heuristics(10);
+        for (expr1, expr2) in self.pos_occ.iter().cartesian_product(self.neg_occ.iter()) {
             let mut resolved_clause = expr1.resolution(&expr2);
             if !resolved_clause.is_empty() {
                 let resolved_expr = Expr::parse_clause(&mut resolved_clause, variables);
                 resolved_clauses.push(resolved_expr);
             }
-            clauses_chosen.push(expr1);
-            clauses_chosen.push(expr2);
+            //clauses_chosen.push(expr1);
+            //clauses_chosen.push(expr2);
             if resolved_clauses.is_empty() {
                 return Err("The empty clause was generated in resolution!".to_string());
             }
         }
         resolved_clauses = resolved_clauses.into_iter().unique().collect::<Vec<Expr>>();
-        Ok((clauses_chosen, resolved_clauses))
+        Ok(resolved_clauses)
     }
 
     fn simple_filter_heuristics(&mut self, n: usize) -> (Vec<Expr>, Vec<Expr>) {
