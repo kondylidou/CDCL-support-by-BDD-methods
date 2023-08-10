@@ -1,6 +1,3 @@
-use rand::seq::SliceRandom;
-use rand::Rng;
-
 use crate::expr::bool_expr;
 use crate::{
     bdd_util::{BddNode, BddPointer, BddVar},
@@ -216,6 +213,8 @@ impl Bdd {
         }
     }
 
+
+    /*
     /// Convert this `Bdd` to a `BooleanExpression`.
     pub fn to_bool_expr(&self) -> Expr {
         if self.is_false() {
@@ -289,7 +288,7 @@ impl Bdd {
         }
 
         res.last().unwrap().clone()
-    }
+    }*/
 
     /// This method merges two Bdds
     fn apply<T>(&self, other: &Bdd, op: T, ordering: &std::collections::HashMap<i32, usize>) -> Bdd
@@ -491,6 +490,7 @@ impl Bdd {
         Ok(assignment)
     }
 
+    /*
     /// Randomly choose clauses from the set of clauses and check if the found assignment satisfies them.
     pub fn check_sat(
         &self,
@@ -538,6 +538,7 @@ impl Bdd {
             Err(err) => panic!("{}", err),
         }
     }
+    */
 
     /*
     fn find_resolvents(&self, resolvents: &Vec<BddVar>) -> Vec<BddPointer> {

@@ -1,14 +1,14 @@
 use super::bucket::Bucket;
+use super::var_ordering_builder::Dimacs;
 use crate::bdd_util::BddVar;
 use crate::expr::bool_expr::Expr;
-use crate::parser::parse::Dimacs;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
-use itertools::Itertools;
+//use itertools::Itertools;
 
 #[derive(Debug, Clone)]
 pub struct BddVarOrdering {
     pub variables: Vec<BddVar>,
-    pub formula: Vec<Expr>,
+    pub formula: Vec<Vec<Expr>>,
     pub ordering: std::collections::HashMap<i32, usize>,
     pub buckets: std::collections::HashMap<usize, Bucket>,
 }
@@ -20,6 +20,7 @@ impl BddVarOrdering {
         builder.make(dimacs)
     }
 
+    /* 
     /// This method represents the method of directional resolution
     /// or bucket elimination for CNF formulas.
     /// The buckets are processed in the reversed order of the
@@ -27,7 +28,7 @@ impl BddVarOrdering {
     /// in the lower buckets depending on their highest variable.
     pub fn directional_resolution(&mut self) -> Vec<Expr> {
         // We need a vector to store potential strong learnt clauses
-        let mut potential_learnt_clauses: Vec<Expr> = Vec::new();
+        let mut potential_learnt_clauses: Vec<Vec<Expr>> = Vec::new();
         //let mut unit_clauses: Vec<Expr> = Vec::new();
         // We need to process buckets in the reverse order of the variable ordering
         let mut idx = self.buckets.len();
@@ -93,24 +94,22 @@ impl BddVarOrdering {
             .drain_filter(|e| clauses_to_delete.contains(&e));
         */
         potential_learnt_clauses
-    }
+    }*/
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
 
-    use crate::{
-        parser::parse::parse_dimacs, preprocessing, variable_ordering::var_ordering::BddVarOrdering,
-    };
+    use crate::{expr::bool_expr::Expr, variable_ordering::var_ordering::BddVarOrdering};
 
     #[test]
     pub fn bucket_elimination_bench() {
-        let path: &str = "/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/sgen4-unsat-65-1.cnf";
+        let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/4dfe7816c2c198f8fd0b328d1e9672c9-crafted_n10_d6_c3_num18.cnf";
 
         let start = Instant::now();
         // create the Dimacs instance
-        let dimacs = parse_dimacs(path);
+        let expressions = Expr::parse_dimacs_cnf_file(path).unwrap();
         println!(
             "Time elapsed to parse the CNF formula : {:?}",
             start.elapsed()
@@ -118,18 +117,18 @@ mod tests {
 
         let start = Instant::now();
         // build the variable ordering
-        let mut var_ordering = BddVarOrdering::new(dimacs);
+        let var_ordering = BddVarOrdering::new(expressions);
         println!(
             "Time elapsed to create the variable ordering : {:?}",
             start.elapsed()
         );
 
         let start = Instant::now();
-        let potential_learnt_clauses = var_ordering.directional_resolution();
+        //let potential_learnt_clauses = var_ordering.directional_resolution();
 
         //println!("{}", unit_clauses.len());
         //println!("{}", var_ordering.formula.len());
-        println!("{}", potential_learnt_clauses.len());
+        // /println!("{}", potential_learnt_clauses.len());
 
         println!(
             "Time elapsed for directional resolution : {:?}",

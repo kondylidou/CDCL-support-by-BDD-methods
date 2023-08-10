@@ -1,11 +1,40 @@
 use crate::bdd_util::BddVar;
 use crate::expr::bool_expr::Expr;
-use crate::parser::parse::Dimacs;
 use crate::variable_ordering::var_ordering::BddVarOrdering;
 use std::cmp::Ordering;
 use std::cmp::Ordering::*;
 
 use super::bucket::Bucket;
+
+#[derive(Clone, Debug)]
+pub struct Dimacs {
+    pub nb_v: i32,
+    pub nb_c: i32,
+    pub var_map: std::collections::HashMap<i32, Expr>,
+    pub vars_scores: std::collections::HashMap<i32, f64>,
+    pub expressions: Vec<Vec<Expr>>,
+}
+
+/// For our implementation, we use a simple heuristic to determine the variable ordering:
+/// each variable is assigned a score, computed as the quotient between the number of clauses
+/// containing the variable and the average arity of those clauses.
+pub fn calculate_scores(var_clause_arities: std::collections::HashMap<i32, Vec<usize>>) -> std::collections::HashMap<i32, f64> {
+    let mut vars_scores = std::collections::HashMap::new();
+    for (var, clause_arities) in var_clause_arities {
+        // the number of clauses where the variable appears
+        let clauses_num = clause_arities.len() as f64;
+        // the average arity of those clauses is computed by dividing
+        // the sum of the arities with the total number of clauses
+        let sum: usize = clause_arities.iter().sum();
+        let aver_arity = sum as f64 / clauses_num;
+        // the score is computed as the quotient between the number of clauses
+        // containing the variable and the average arity of those clauses
+        let score = clauses_num / aver_arity;
+        vars_scores.insert(var, score);
+    }
+    vars_scores
+}
+
 
 #[derive(Clone, Debug)]
 pub struct BddVarOrderingBuilder {
@@ -37,16 +66,13 @@ impl BddVarOrderingBuilder {
     }
 
     /// Similar to `make_variable`, but allows creating multiple variables at the same time.
-    pub fn make_variables(
-        &mut self,
-        names: Vec<i32>,
-        vars_scores: &std::collections::HashMap<i32, f64>,
-    ) -> Vec<BddVar> {
-        // TODO handle unwrap here
-        names
-            .iter()
-            .map(|name| self.make_variable(*name, *vars_scores.get(name).unwrap()))
-            .collect()
+    pub fn make_variables(&mut self, var_map: std::collections::HashMap<i32, Expr>, vars_scores: &std::collections::HashMap<i32, f64>) -> Vec<BddVar> {
+        let mut variables = Vec::new();
+        for (var_name, _) in var_map {
+            // TODO handle unwrap here
+            variables.push(self.make_variable(var_name, *vars_scores.get(&var_name).unwrap()));
+        }
+        variables
     }
 
     /// Convert this builder to an actual variable ordering.
@@ -55,13 +81,11 @@ impl BddVarOrderingBuilder {
     /// (that is, variables that appear in many mostly short clauses)
     /// correspond to layers nearer the top of the BDD.
     pub fn make(&mut self, mut dimacs: Dimacs) -> BddVarOrdering {
-        let variables = self.make_variables(dimacs.vars, &dimacs.vars_scores);
-        let formula = Expr::parse_clauses(&mut dimacs.clauses, &variables);
-        let mut expressions = formula.clone();
+        let variables = self.make_variables(dimacs.var_map, &dimacs.vars_scores);
 
         let mut ordering: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
-        let mut buckets: std::collections::HashMap<usize, Bucket> =
-            std::collections::HashMap::new();
+        //let mut buckets: std::collections::HashMap<usize, Bucket> =
+        //    std::collections::HashMap::new();
 
         let mut v: Vec<_> = dimacs.vars_scores.iter().collect();
         // v is a sorted vector in decreasing order according to the scores
@@ -73,12 +97,12 @@ impl BddVarOrderingBuilder {
             idx -= 1;
             ordering.insert(*var, idx);
             // process the buckets in the reverse order of the variable ordering
-            buckets.insert(idx, Bucket::create_bucket(*var, &mut expressions));
+            //buckets.insert(idx, Bucket::create_bucket(*var, &mut dimacs.expressions));
         }
 
         BddVarOrdering {
             variables,
-            formula,
+            formula: dimacs.expressions,
             ordering,
             buckets,
         }
@@ -97,19 +121,23 @@ impl BddVarOrderingBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::cmp::Ordering;
 
-    use super::*;
-    use crate::{expr::bool_expr::Expr, parser::parse::parse_dimacs, preprocessing};
+    use crate::{expr::bool_expr::Expr, variable_ordering::{var_ordering::BddVarOrdering, var_ordering_builder::BddVarOrderingBuilder}};
+
 
     #[test]
     fn variable_scores() {
-        let dimacs = parse_dimacs("tests/test3.cnf");
+        let dimacs = Expr::parse_dimacs_cnf_file("tests/test3.cnf").unwrap();
         let vars_scores = dimacs.vars_scores;
         // score for 1:
         // number of clauses containing the var: 6
-        // average arity of those clauses: (5+2+2+2+2+2) / 5 = 2,5
+        // average arity of those clauses: (5+2+2+2+2+2) / 6 = 2,5
         // score = 6/2.5 = 2,4
+        // score for 3:
+        // number of clauses containing the var: 6
+        // average arity of those clauses: (2+4+2+5+3+4) / 6 = 3,3
+        // score = 6/3.3 = 1,81
 
         assert_eq!(*vars_scores.get(&1).unwrap(), 2.4 as f64);
         assert!(vars_scores.get(&1).unwrap() > vars_scores.get(&5).unwrap());
@@ -117,7 +145,7 @@ mod tests {
 
     #[test]
     fn variable_ordering() {
-        let dimacs = parse_dimacs("tests/test3.cnf");
+        let dimacs = Expr::parse_dimacs_cnf_file("tests/test3.cnf").unwrap();
         let var_ordering = BddVarOrdering::new(dimacs);
 
         let mut var_index_mapping: std::collections::HashMap<i32, usize> =
@@ -128,13 +156,13 @@ mod tests {
         var_index_mapping.insert(4, 3);
         var_index_mapping.insert(5, 4);
         var_index_mapping.insert(i32::MAX, 5);
-
+ 
         assert_eq!(var_index_mapping, var_ordering.ordering);
     }
 
     #[test]
     fn buckets_ordering() {
-        let dimacs = parse_dimacs("tests/test3.cnf");
+        let dimacs = Expr::parse_dimacs_cnf_file("tests/test3.cnf").unwrap();
         let var_ordering = BddVarOrdering::new(dimacs);
         let buckets = var_ordering.buckets;
         assert_eq!(buckets.len() + 1, var_ordering.ordering.len());
@@ -147,109 +175,4 @@ mod tests {
         }
     }
 
-    #[test]
-    pub fn test_unit_propagation1() {
-        let mut clauses = Vec::new();
-        let mut clause1 = vec![-1, 2, 3, 4];
-        let clause2 = vec![3, 6, 1];
-        let clause3 = vec![7, -1, -9];
-        let clause4 = vec![1];
-
-        clauses.push(clause1.clone());
-        clauses.push(clause2.clone());
-        clauses.push(clause3.clone());
-        clauses.push(clause4.clone());
-
-        let mut builder = BddVarOrderingBuilder::new();
-        let mut scores = HashMap::new();
-        let mut i: f64 = 0.0;
-
-        for clause in &clauses {
-            for var in clause {
-                scores.insert(*var, i);
-                i += 1.1;
-            }
-        }
-        clause1.extend(clause2.iter());
-        clause1.extend(clause3.iter());
-        clause1.extend(clause4.iter());
-        clause1.sort();
-        clause1.dedup();
-
-        let vars = builder.make_variables(clause1, &scores);
-
-        let mut clauses_set = Expr::parse_clauses(&mut clauses, &vars);
-
-        preprocessing::unit_propagation(&mut clauses_set, vec![Expr::Var(1)]);
-
-        let cla1 = Expr::Or(
-            Box::new(Expr::Var(2)),
-            Box::new(Expr::Or(Box::new(Expr::Var(3)), Box::new(Expr::Var(4)))),
-        );
-        let cla3 = Expr::Or(
-            Box::new(Expr::Var(7)),
-            Box::new(Expr::Not(Box::new(Expr::Var(9)))),
-        );
-        let cla4 = Expr::Var(1);
-
-        let mut res = Vec::new();
-        res.push(cla1);
-        res.push(cla3);
-        res.push(cla4);
-
-        assert_eq!(clauses_set, res);
-    }
-
-    #[test]
-    pub fn test_unit_propagation2() {
-        let mut clauses = Vec::new();
-        let mut clause1 = vec![1, 2, 3, 4];
-        let clause2 = vec![3, 6, -1];
-        let clause3 = vec![7, 1, -9];
-        let clause4 = vec![-1];
-
-        clauses.push(clause1.clone());
-        clauses.push(clause2.clone());
-        clauses.push(clause3.clone());
-        clauses.push(clause4.clone());
-
-        let mut builder = BddVarOrderingBuilder::new();
-        let mut scores = HashMap::new();
-        let mut i: f64 = 0.0;
-
-        for clause in &clauses {
-            for var in clause {
-                scores.insert(*var, i);
-                i += 1.1;
-            }
-        }
-        clause1.extend(clause2.iter());
-        clause1.extend(clause3.iter());
-        clause1.extend(clause4.iter());
-        clause1.sort();
-        clause1.dedup();
-
-        let vars = builder.make_variables(clause1, &scores);
-
-        let mut clauses_set = Expr::parse_clauses(&mut clauses, &vars);
-
-        preprocessing::unit_propagation(&mut clauses_set, vec![Expr::Not(Box::new(Expr::Var(1)))]);
-
-        let cla1 = Expr::Or(
-            Box::new(Expr::Var(2)),
-            Box::new(Expr::Or(Box::new(Expr::Var(3)), Box::new(Expr::Var(4)))),
-        );
-        let cla3 = Expr::Or(
-            Box::new(Expr::Var(7)),
-            Box::new(Expr::Not(Box::new(Expr::Var(9)))),
-        );
-        let cla4 = Expr::Not(Box::new(Expr::Var(1)));
-
-        let mut res = Vec::new();
-        res.push(cla1);
-        res.push(cla3);
-        res.push(cla4);
-
-        assert_eq!(clauses_set, res);
-    }
 }

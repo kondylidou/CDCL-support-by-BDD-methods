@@ -1,8 +1,3 @@
-#![feature(drain_filter)]
-
-pub mod parser {
-    pub mod parse;
-}
 pub mod variable_ordering {
     pub mod bucket;
     pub mod var_ordering;
@@ -12,7 +7,6 @@ pub mod approx;
 pub mod bdd;
 pub mod bdd_util;
 mod clause_gen;
-pub mod preprocessing;
 
 pub mod statistics {
     pub mod stats;
@@ -20,7 +14,6 @@ pub mod statistics {
 
 pub mod expr {
     pub mod bool_expr;
-    pub mod parser;
 }
 pub mod parallel {
     pub mod clause_database;
