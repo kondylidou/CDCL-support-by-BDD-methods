@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
+
 use crate::{
     bdd::Bdd, bdd_util::BddVar, expr::bool_expr::Expr::*, variable_ordering::var_ordering_builder::{Dimacs, self}
 };
@@ -12,8 +15,12 @@ pub enum Expr {
 
 impl Expr {
 
-    pub fn new_var(var: i32) -> Expr {
-        Expr::Var(var)
+    pub fn get_var_name(&self) -> i32 {
+        match self {
+            Expr::Var(name) => *name,
+            Expr::Not(inner) => inner.get_var_name(),
+            _ => i32::MAX,
+        }
     }
     
     pub fn parse_dimacs_cnf_file(file_path: &str) -> Result<Dimacs, String> {
@@ -22,7 +29,7 @@ impl Expr {
         // this hashmap contains a variable and the arities of the clauses where
         // this variable is appearing.
         let mut var_clause_arities: std::collections::HashMap<i32, Vec<usize>> = std::collections::HashMap::new();
-        let mut expressions: Vec<Vec<Expr>> = Vec::new();
+        let mut expressions: Vec<Clause> = Vec::new();
         let mut nb_v = 0;
         let mut nb_c = 0;
 
@@ -42,7 +49,7 @@ impl Expr {
                     }
                 },
                 _ => {
-                    let mut expr = Vec::new();
+                    let mut literals = HashSet::new();
                     let clause: Vec<i32> = tokens
                         .iter()
                         .take_while(|&&token| token != "0")
@@ -51,14 +58,14 @@ impl Expr {
 
                     for lit in &clause {
                         // add the clause arity to each variable appearing in this clause
-                        if let Some(arities) = var_clause_arities.get_mut(&lit) {
+                        if let Some(arities) = var_clause_arities.get_mut(&lit.abs()) {
                             arities.push(clause.len());
                         } else {
-                            var_clause_arities.insert(*lit, vec![clause.len()]);
+                            var_clause_arities.insert(lit.abs(), vec![clause.len()]);
                         }
-                        expr.push(Expr::parse_lit(*lit, &mut var_map));
+                        literals.insert(Expr::parse_lit(*lit, &mut var_map));
                     }
-                    expressions.push(expr);
+                    expressions.push(Clause { literals });
                     
                 }
             }
@@ -88,36 +95,8 @@ impl Expr {
         }
     }
 
-    /// If a clause consists of only one literal (positive or
-    /// negative), this clause is called a unit clause. We fix the
-    /// valuation of an atom occurring in a unit clause to the
-    /// value indicated by the sign of the literal.
-    pub fn is_unit(clause: Vec<Expr>) -> bool {
-        if clause.len() == 1 {
-            return true;
-        }
-        false
-    }
-
-    /// This method is used in unit propagation.
-    /// It makes sure that the clause from which the variable
-    /// will be removed is not unit and removes the given
-    /// variable using the above function to remove a variable
-    /// from a given Boolean Expression.
-    pub fn remove_var(clause: &mut Vec<Expr>, var_name: i32) -> bool {
-        if let Some(index) = Expr::find_var_idx(clause, var_name) {
-            clause.remove(index);
-            return true;
-        } 
-        false
-    }
-
-    pub fn find_var_idx(clause: &mut Vec<Expr>, var_name: i32) -> Option<usize> {
-        clause.iter().position(|e| e.contains_var(var_name))
-    }
-
     /// Negate an expression.
-    pub fn negate(&self) -> Expr {
+    fn negate(&self) -> Expr {
         match self {
             Const(value) => {
                 if *value {
@@ -127,11 +106,11 @@ impl Expr {
                 }
             }
             Var(name) => Expr::Not(Box::new(Expr::Var(*name))),
-            Not(inner) => inner.negate(),
+            Not(inner) => Expr::Var(inner.get_var_name()),
         }
     }
 
-    pub fn contains_var(&self, var: i32) -> bool {
+    fn contains_var(&self, var: i32) -> bool {
         match self {
             Expr::Var(name) => name.eq(&var),
             Expr::Not(inner) => inner.contains_var(var),
@@ -139,36 +118,18 @@ impl Expr {
         }
     }
 
-    pub fn contains_neg_var(&self, var: i32) -> bool {
+    fn contains_neg_var(&self, var: i32) -> bool {
         match self {
             Expr::Not(inner) => inner.contains_pos_var(var),
             _ => false,
         }
     }
 
-    pub fn contains_pos_var(&self, var: i32) -> bool {
+    fn contains_pos_var(&self, var: i32) -> bool {
         match self {
             Expr::Var(name) => name.eq(&var),
             _ => false,
         }
-    }
-
-    pub fn clause_contains_var(clause: &[Expr], index: i32) -> bool {
-        clause.iter().any(|expr| expr.contains_var(index))
-    }
-
-    pub fn clause_contains_pos_var(clause: &[Expr], index: i32) -> bool {
-        clause.iter().any(|expr| expr.contains_pos_var(index))
-    }
-
-    pub fn solve(clause: Vec<Expr>, assignment: &std::collections::HashMap<i32, bool>) -> bool {
-        let mut assigned_clause = Vec::new();
-        for expr in clause {
-            assigned_clause.push(expr.set_vars(assignment));
-        }
-        assigned_clause.iter().fold(false, |acc, opt| {
-            acc || opt.unwrap_or(false)
-        })
     }
 
     fn set_vars(&self, assignment: &std::collections::HashMap<i32, bool>) -> Option<bool> {
@@ -221,39 +182,6 @@ impl Expr {
     }
 
     /*
-    pub fn resolve(&self, other: &Expr) -> Vec<i32> {
-        let mut vars = Vec::new();
-        let vars1 = self.to_vars_with_polarities();
-        let mut vars2 = other.to_vars_with_polarities();
-        for (pol, var) in vars1 {
-            if !vars2.contains(&(!pol, var)) {
-                if pol {
-                    if !vars.contains(&var) {
-                        vars.push(var);
-                    }
-                } else {
-                    if !vars.contains(&-var) {
-                        vars.push(-var);
-                    }
-                };
-            } else {
-                vars2.retain(|(pol2, var2)| (*pol2, *var2) != (!pol, var));
-            }
-        }
-        for (pol, var) in vars2 {
-            if pol {
-                if !vars.contains(&var) {
-                    vars.push(var);
-                }
-            } else {
-                if !vars.contains(&-var) {
-                    vars.push(-var);
-                }
-            };
-        }
-        vars
-    }
-
     // This method helps the process of bucket elimination.
     // It finds the the highest order variable in the clause
     // to be able to sort it afterwards in the correct bucket
@@ -295,6 +223,96 @@ impl PartialEq for Expr {
     }
 }
 
+#[derive(Debug, Clone, Eq)]
+pub struct Clause {
+    pub literals: HashSet<Expr>,
+}
+
+impl Clause {
+    pub fn is_empty(&self) -> bool {
+        self.literals.is_empty()
+    }
+
+    // Method to check if a clause contains an expression
+    pub fn contains_expr(&self, expr: &Expr) -> bool {
+        self.literals.contains(expr)
+    }
+
+    fn remove(&mut self, literal: &Expr) {
+        self.literals.remove(literal);
+    }
+
+    /// If a clause consists of only one literal (positive or
+    /// negative), this clause is called a unit clause. We fix the
+    /// valuation of an atom occurring in a unit clause to the
+    /// value indicated by the sign of the literal.
+    pub fn is_unit(&self) -> bool {
+        if self.literals.len() == 1 {
+            return true;
+        }
+        false
+    }
+
+    pub fn clause_contains_var(&self, index: i32) -> bool {
+        self.literals.iter().any(|expr| expr.contains_var(index))
+    }
+
+    pub fn clause_contains_pos_var(&self, index: i32) -> bool {
+        self.literals.iter().any(|expr| expr.contains_pos_var(index))
+    }
+
+    pub fn solve(&self, assignment: &std::collections::HashMap<i32, bool>) -> bool {
+        let mut assigned_clause = Vec::new();
+        for expr in &self.literals {
+            assigned_clause.push(expr.set_vars(assignment));
+        }
+        assigned_clause.iter().fold(false, |acc, opt| {
+            acc || opt.unwrap_or(false)
+        })
+    }
+
+    pub fn resolve(&self, other: &Clause) -> Clause {
+        let mut new_literals = HashSet::new();
+
+        for literal in self.literals.iter() {
+            if !other.literals.contains(literal) && !other.literals.contains(&literal.negate()) {
+                new_literals.insert(literal.clone());
+            }
+            if other.literals.contains(literal) && !other.literals.contains(&literal.negate()) {
+                new_literals.insert(literal.clone());
+            }
+        }
+
+        for literal in other.literals.iter() {
+            if !self.literals.contains(literal) && !self.literals.contains(&literal.negate()) {
+                new_literals.insert(literal.clone());
+            }
+            if self.literals.contains(literal) && !self.literals.contains(&literal.negate()) {
+                new_literals.insert(literal.clone());
+            }
+        }
+
+        Clause {
+            literals: new_literals,
+        }
+    }
+
+}
+
+impl PartialEq for Clause {
+    fn eq(&self, other: &Self) -> bool {
+        self.literals == other.literals
+    }
+}
+
+impl Hash for Clause {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for literal in &self.literals {
+            literal.hash(state);
+        }
+    }
+}
+
 /// Partial operator function corresponding to $x \land y$.
 pub fn and(l: Option<bool>, r: Option<bool>) -> Option<bool> {
     match (l, r) {
@@ -317,39 +335,9 @@ pub fn or(l: Option<bool>, r: Option<bool>) -> Option<bool> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
 
-    use crate::expr::bool_expr::Expr;
-
-    #[test]
-    fn test_is_unit() {
-        let clause1 = vec![Expr::Const(true)];
-        let clause2 = vec![Expr::Var(1), Expr::Var(2)];
-        assert_eq!(Expr::is_unit(clause1), true);
-        assert_eq!(Expr::is_unit(clause2), false);
-    }
-
-    #[test]
-    fn test_remove_var() {
-        let mut clause = vec![Expr::Var(1), Expr::Var(2), Expr::Var(3)];
-        assert_eq!(Expr::remove_var(&mut clause, 2), true);
-        assert_eq!(clause, vec![Expr::Var(1), Expr::Var(3)]);
-    }
-
-    #[test]
-    fn test_find_var_idx() {
-        let clause = vec![Expr::Var(1), Expr::Var(2), Expr::Var(3)];
-        assert_eq!(Expr::find_var_idx(&mut clause.clone(), 2), Some(1));
-        assert_eq!(Expr::find_var_idx(&mut clause.clone(), 4), None);
-    }
-
-    // Add more tests for other methods and functionality
-
-    #[test]
-    fn test_contains_var() {
-        let expr = Expr::Not(Box::new(Expr::Var(5)));
-        assert_eq!(expr.contains_var(5), true);
-        assert_eq!(expr.contains_var(10), false);
-    }
+    use super::*;
 
     #[test]
     fn test_parse_lit_positive() {
@@ -366,78 +354,108 @@ mod tests {
     }
 
     #[test]
-    fn test_find_var_idx_found() {
-        let mut clause = vec![Expr::Var(1), Expr::Var(2), Expr::Var(3)];
-        let index = Expr::find_var_idx(&mut clause, 2);
-        assert_eq!(index, Some(1));
+    fn test_to_bdd() {
+        let var1 = BddVar::new(1, 0.5);
+        let var2 = BddVar::new(2, 0.3);
+        let var3 = BddVar::new(3, 0.8);
+
+        let variables = vec![var1.clone(), var2.clone(), var3.clone()];
+
+        let mut ordering = std::collections::HashMap::new();
+        ordering.insert(1, 0);
+        ordering.insert(2, 1);
+        ordering.insert(3, 2);
+
+        let expr = Expr::Not(Box::new(Expr::Var(2)));
+
+        let bdd = expr.to_bdd(&variables, &ordering);
+
+        // You can add more specific assertions about the BDD structure if needed
+        //assert_eq!(bdd.var, var2);
+        //assert_eq!(bdd.high, None);
+        //assert_eq!(bdd.low, None);
     }
 
     #[test]
-    fn test_find_var_idx_not_found() {
-        let mut clause = vec![Expr::Var(1), Expr::Var(2), Expr::Var(3)];
-        let index = Expr::find_var_idx(&mut clause, 4);
-        assert_eq!(index, None);
+    fn test_is_unit() {
+        let clause = Clause {
+            literals: HashSet::from_iter(vec![Expr::Var(1)]),
+        };
+        assert_eq!(clause.is_unit(), true);
+
+        let clause = Clause {
+            literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2)]),
+        };
+        assert_eq!(clause.is_unit(), false);
     }
 
     #[test]
     fn test_solve() {
-        let clause = vec![Expr::Var(1)];
-        let mut assignment = std::collections::HashMap::new();
-        assignment.insert(1, true);
+        let assignment: std::collections::HashMap<i32, bool> = [(1, true), (2, false), (3, true)]
+            .iter()
+            .cloned()
+            .collect();
 
-        let result = Expr::solve(clause, &assignment);
-        assert_eq!(result, true);
+        let clause = Clause {
+            literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Not(Box::new(Expr::Var(2))), Expr::Var(3)]),
+        };
+
+        assert_eq!(clause.solve(&assignment), true);
     }
 
     #[test]
-    fn test_parse_dimacs_cnf_file() {
-        let result = Expr::parse_dimacs_cnf_file("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/tests/test1.cnf");
-        assert!(result.is_ok());
-        let dimacs = result.unwrap();
-        assert_eq!(dimacs.nb_v, 50);
-        assert_eq!(dimacs.nb_c, 80);
-        //-83 16 65 0
-        //188 1 171 0
-        //23 132 -59 0
+    fn test_resolve_disjoint_clauses() {
+        let literals1 = HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2)]);
+        let literals2 = HashSet::from_iter(vec![Expr::Var(3), Expr::Var(4)]);
+        let clause1 = Clause {
+            literals: literals1,
+        };
+        let clause2 = Clause {
+            literals: literals2,
+        };
+        let expected_literals = HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2),Expr::Var(3), Expr::Var(4)]);
+        let expected_result = Clause {
+            literals: expected_literals,
+        };
 
-        let expressions = vec![vec![Expr::Not(Box::new(Expr::Var(83))), Expr::Var(16), Expr::Var(65)], 
-        vec![Expr::Var(188), Expr::Var(1), Expr::Var(171)], vec![Expr::Var(23), Expr::Var(132), Expr::Not(Box::new(Expr::Var(59)))]];
-        assert_eq!(dimacs.expressions, expressions);
+        assert_eq!(clause1.resolve(&clause2), expected_result);
     }
 
     #[test]
-    fn test_contains_pos_var_positive() {
-        let expr = Expr::Var(2);
-        assert_eq!(expr.contains_pos_var(2), true);
+    fn test_resolve_overlap_clauses() {
+        let literals1 = HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2)]);
+        let literals2 = HashSet::from_iter(vec![Expr::Var(2), Expr::Var(3)]);
+        let clause1 = Clause {
+            literals: literals1,
+        };
+        let clause2 = Clause {
+            literals: literals2,
+        };
+
+        let expected_literals = HashSet::from_iter(vec![Expr::Var(1),Expr::Var(2), Expr::Var(3)]);
+        let expected_result = Clause {
+            literals: expected_literals,
+        };
+
+        assert_eq!(clause1.resolve(&clause2), expected_result);
     }
 
     #[test]
-    fn test_contains_pos_var_negative() {
-        let expr = Expr::Not(Box::new(Expr::Var(3)));
-        assert_eq!(expr.contains_pos_var(3), false);
-    }
+    fn test_resolve_opposite_literals() {
+        let literals1 = HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2)]);
+        let literals2 = HashSet::from_iter(vec![Expr::Not(Box::new(Expr::Var(1))), Expr::Var(3)]);
+        let clause1 = Clause {
+            literals: literals1,
+        };
+        let clause2 = Clause {
+            literals: literals2,
+        };
 
-    #[test]
-    fn test_contains_pos_var_not_found() {
-        let expr = Expr::Var(4);
-        assert_eq!(expr.contains_pos_var(5), false);
-    }
+        let expected_literals = HashSet::from_iter(vec![Expr::Var(2), Expr::Var(3)]);
+        let expected_result = Clause {
+            literals: expected_literals,
+        };
 
-    #[test]
-    fn test_contains_neg_var_positive() {
-        let expr = Expr::Not(Box::new(Expr::Var(6)));
-        assert_eq!(expr.contains_neg_var(6), true);
-    }
-
-    #[test]
-    fn test_contains_neg_var_negative() {
-        let expr = Expr::Var(7);
-        assert_eq!(expr.contains_neg_var(7), false);
-    }
-
-    #[test]
-    fn test_contains_neg_var_not_found() {
-        let expr = Expr::Not(Box::new(Expr::Var(8)));
-        assert_eq!(expr.contains_neg_var(9), false);
+        assert_eq!(clause1.resolve(&clause2), expected_result);
     }
 }

@@ -1,16 +1,14 @@
-use super::bucket::Bucket;
 use super::var_ordering_builder::Dimacs;
 use crate::bdd_util::BddVar;
-use crate::expr::bool_expr::Expr;
+use crate::expr::bool_expr::Clause;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
 //use itertools::Itertools;
 
 #[derive(Debug, Clone)]
 pub struct BddVarOrdering {
     pub variables: Vec<BddVar>,
-    pub formula: Vec<Vec<Expr>>,
+    pub expressions: Vec<Clause>,
     pub ordering: std::collections::HashMap<i32, usize>,
-    pub buckets: std::collections::HashMap<usize, Bucket>,
 }
 
 impl BddVarOrdering {
@@ -97,6 +95,15 @@ impl BddVarOrdering {
     }*/
 }
 
+fn get_key_by_value(map: &std::collections::HashMap<i32, usize>, value: &usize) -> Option<i32> {
+    for (key, val) in map.iter() {
+        if val == value {
+            return Some(*key);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
@@ -117,35 +124,21 @@ mod tests {
 
         let start = Instant::now();
         // build the variable ordering
-        let var_ordering = BddVarOrdering::new(expressions);
+        let _var_ordering = BddVarOrdering::new(expressions);
         println!(
             "Time elapsed to create the variable ordering : {:?}",
             start.elapsed()
         );
 
-        let start = Instant::now();
-        //let potential_learnt_clauses = var_ordering.directional_resolution();
-
-        //println!("{}", unit_clauses.len());
-        //println!("{}", var_ordering.formula.len());
-        // /println!("{}", potential_learnt_clauses.len());
-
-        println!(
-            "Time elapsed for directional resolution : {:?}",
-            start.elapsed()
-        );
-
-        let start = Instant::now();
-        // as directional resolution returns many unit clauses do
-        // unit propagation
-        //preprocessing::unit_propagation(&mut var_ordering.formula, unit_clauses);
-        //println!("{}", var_ordering.formula.len());
-        println!("Time elapsed for unit propagation : {:?}", start.elapsed());
-
         //let start = Instant::now();
-        //let bdd = Bdd::build(potential_learnt_clauses, &var_ordering.variables,
-        //    &var_ordering.ordering, 0);
-        //println!("{:?}", bdd);
-        //println!("Time elapsed for building the Bdd : {:?}", start.elapsed());
+
+        //let first = var_ordering::get_key_by_value(&var_ordering.ordering, &0);
+        //let bucket = Bucket::create_bucket(first.unwrap(), &mut var_ordering.formula);
+        //println!("First bucket clauses num {:?}", bucket.neg_occ.len() + bucket.pos_occ.len());
+        //println!(
+        //    "Time elapsed for to create first bucket : {:?}",
+        //    start.elapsed()
+        //);
+        
     }
 }

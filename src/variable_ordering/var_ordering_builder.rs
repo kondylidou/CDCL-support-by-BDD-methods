@@ -1,10 +1,8 @@
 use crate::bdd_util::BddVar;
-use crate::expr::bool_expr::Expr;
+use crate::expr::bool_expr::{Expr, Clause};
 use crate::variable_ordering::var_ordering::BddVarOrdering;
 use std::cmp::Ordering;
 use std::cmp::Ordering::*;
-
-use super::bucket::Bucket;
 
 #[derive(Clone, Debug)]
 pub struct Dimacs {
@@ -12,7 +10,7 @@ pub struct Dimacs {
     pub nb_c: i32,
     pub var_map: std::collections::HashMap<i32, Expr>,
     pub vars_scores: std::collections::HashMap<i32, f64>,
-    pub expressions: Vec<Vec<Expr>>,
+    pub expressions: Vec<Clause>,
 }
 
 /// For our implementation, we use a simple heuristic to determine the variable ordering:
@@ -80,13 +78,11 @@ impl BddVarOrderingBuilder {
     /// so that higher-scoring variables
     /// (that is, variables that appear in many mostly short clauses)
     /// correspond to layers nearer the top of the BDD.
-    pub fn make(&mut self, mut dimacs: Dimacs) -> BddVarOrdering {
+    pub fn make(&mut self, dimacs: Dimacs) -> BddVarOrdering {
         let variables = self.make_variables(dimacs.var_map, &dimacs.vars_scores);
 
         let mut ordering: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
-        //let mut buckets: std::collections::HashMap<usize, Bucket> =
-        //    std::collections::HashMap::new();
-
+    
         let mut v: Vec<_> = dimacs.vars_scores.iter().collect();
         // v is a sorted vector in decreasing order according to the scores
         v.sort_by(|x, y| BddVarOrderingBuilder::var_dec_cmp(&x.1, &y.1));
@@ -96,15 +92,12 @@ impl BddVarOrderingBuilder {
         for (var, _) in v.into_iter().rev() {
             idx -= 1;
             ordering.insert(*var, idx);
-            // process the buckets in the reverse order of the variable ordering
-            //buckets.insert(idx, Bucket::create_bucket(*var, &mut dimacs.expressions));
         }
 
         BddVarOrdering {
             variables,
-            formula: dimacs.expressions,
+            expressions: dimacs.expressions,
             ordering,
-            buckets,
         }
     }
 
@@ -121,9 +114,8 @@ impl BddVarOrderingBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::Ordering;
 
-    use crate::{expr::bool_expr::Expr, variable_ordering::{var_ordering::BddVarOrdering, var_ordering_builder::BddVarOrderingBuilder}};
+    use crate::{expr::bool_expr::Expr, variable_ordering::var_ordering::BddVarOrdering};
 
 
     #[test]
@@ -158,21 +150,6 @@ mod tests {
         var_index_mapping.insert(i32::MAX, 5);
  
         assert_eq!(var_index_mapping, var_ordering.ordering);
-    }
-
-    #[test]
-    fn buckets_ordering() {
-        let dimacs = Expr::parse_dimacs_cnf_file("tests/test3.cnf").unwrap();
-        let var_ordering = BddVarOrdering::new(dimacs);
-        let buckets = var_ordering.buckets;
-        assert_eq!(buckets.len() + 1, var_ordering.ordering.len());
-
-        for (var, idx) in var_ordering.ordering {
-            if var != i32::MAX {
-                let bucket = buckets.get(&idx).unwrap();
-                assert_eq!(bucket.get_index(), var);
-            }
-        }
     }
 
 }
