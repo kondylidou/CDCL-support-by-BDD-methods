@@ -1,5 +1,7 @@
 use std::collections::{HashSet, HashMap};
 
+use anyhow::Ok;
+
 use crate::expr::bool_expr::{Clause, Expr};
 
 /*
@@ -29,6 +31,76 @@ use crate::expr::bool_expr::{Clause, Expr};
 pub struct Bucket(Vec<Clause>);
 
 impl Bucket {
+
+     // Function to choose a variable for elimination based on the minimum width heuristic
+     fn choose_variable_to_eliminate(&self) -> i32 {
+        let mut min_width = usize::MAX;
+        let mut selected_var = i32::MAX;
+
+        for clause in &self.0 {
+            for lit in &clause.literals {
+                let width = self.0.iter().filter(|&c| c.contains_expr(&lit)).count();
+                if width < min_width {
+                    min_width = width;
+                    selected_var = lit.get_var_name();
+                }
+            }
+        }
+
+        selected_var
+    }
+    
+    // Function to eliminate a variable from the bucket
+    fn eliminate_variable(&mut self, var_to_eliminate: i32) {
+        // Step 1: Find constraints containing the variable to eliminate
+        let constraints_to_eliminate: Vec<Clause> = self.0.iter()
+            .filter(|clause| clause.clause_contains_var(var_to_eliminate))
+            .cloned()
+            .collect();
+
+        // Step 2: Solve for the variable and substitute its value
+        let mut substitution: HashMap<i32, bool> = HashMap::new();
+        for clause in &constraints_to_eliminate {
+            let var_value = clause.solve(&substitution); // Implement clause solving
+            substitution.insert(var_to_eliminate, var_value);
+        }
+
+        // Step 3: Substitute the variable's value into other constraints
+        for clause in &mut self.0 {
+            if !clause.clause_contains_var(var_to_eliminate) {
+                clause.substitute_variable(&substitution);
+            }
+        }
+
+        // Step 4: Remove constraints that are fully determined or satisfied
+        self.0.retain(|clause| !clause.is_determined());
+    }
+
+    // Function to perform full bucket elimination
+    fn bucket_elimination(buckets: &mut Vec<Bucket>) -> Result<(), String> {
+        while let Some(mut bucket) = buckets.pop() {
+            let var_to_eliminate = bucket.choose_variable_to_eliminate(); // Variable selection heuristic
+            if var_to_eliminate == i32::MAX {
+                return Err("No more variables to eliminate".to_string());
+            }
+            bucket.eliminate_variable(var_to_eliminate);
+            if bucket.0.is_empty() {
+                return Err("Unsatisfiable constraint".to_string());
+            }
+            buckets.push(bucket);
+        }
+        Result::Ok(())
+
+        /* 
+        if buckets.len() == 1 {
+            let solution = buckets[0].solve(); // Implement final solution extraction
+            Ok(solution)
+        } else {
+            Err("Unexpected error occurred".to_string())
+        }
+        */
+    }
+
     // Function to group clauses into buckets based on interacting variables
     fn group_clauses_into_buckets_interactions(expressions: Vec<Clause>) -> Vec<Bucket> {
         let interactions: HashMap<i32, Vec<i32>> = Bucket::find_interacting_variables(&expressions);

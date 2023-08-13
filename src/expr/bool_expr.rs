@@ -242,6 +242,59 @@ impl Clause {
         self.literals.remove(literal);
     }
 
+    // Function to check if the clause is fully determined
+    pub fn is_determined(&self) -> bool {
+        // Check if all variables in the clause have assignments
+        self.literals.iter().all(|literal| {
+            if let Expr::Var(var) = literal {
+                // Check if the variable has an assignment
+                self.has_assignment(*var)
+            } else {
+                true // Constants are always determined
+            }
+        })
+    }
+
+    // Function to check if a variable has an assignment in the clause
+    fn has_assignment(&self, var: i32) -> bool {
+        self.literals.iter().any(|literal| {
+            if let Expr::Var(name) = literal {
+                name == &var || name == &(-var) // Check both variable and negation
+            } else {
+                false
+            }
+        })
+    }
+
+    // Function to substitute the value of a variable based on a substitution map
+    pub fn substitute_variable(&mut self, substitution: &std::collections::HashMap<i32, bool>) {
+        for mut literal in self.literals {
+            match literal {
+                Expr::Var(var) => {
+                    if let Some(&value) = substitution.get(&var) {
+                        literal = if value {
+                            Expr::Const(true)
+                        } else {
+                            Expr::Const(false)
+                        };
+                    }
+                }
+                Expr::Not(inner) => {
+                    if let Expr::Var(var) = &*inner {
+                        if let Some(&value) = substitution.get(var) {
+                            literal = if value {
+                                Expr::Const(false)
+                            } else {
+                                Expr::Const(true)
+                            };
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// If a clause consists of only one literal (positive or
     /// negative), this clause is called a unit clause. We fix the
     /// valuation of an atom occurring in a unit clause to the

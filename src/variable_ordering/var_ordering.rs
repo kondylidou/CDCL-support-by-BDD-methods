@@ -4,6 +4,30 @@ use crate::expr::bool_expr::Clause;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
 //use itertools::Itertools;
 
+/*
+    Variable Ordering: The choice of variable ordering can significantly impact the performance of BDDs. 
+    By carefully selecting the variable ordering based on heuristics like most-constrained variable or variable interaction, you can reduce the BDD's size and improve efficiency.
+
+    Bucket Clustering: Group variables into buckets based on their interactions. 
+    Variables that frequently appear together in the same clauses or have strong dependencies should be placed in the same bucket. Then, apply bucket elimination to each bucket separately.
+
+    Apply Bucket Elimination: In each bucket, perform variable elimination by quantifying out variables that are not essential to the final result. This reduces the complexity of the BDD and can lead to significant efficiency gains.
+
+    Dynamic Reordering: Apply dynamic variable reordering periodically during BDD construction. After performing bucket elimination on each bucket, reevaluate the variable ordering to find an optimal arrangement that reduces the overall BDD size.
+
+    Caching: Implement memoization to cache intermediate BDD results. This avoids redundant computations during BDD construction and can significantly speed up the process.
+
+    Garbage Collection: Periodically remove unused nodes and apply garbage collection to the BDD to keep it compact and efficient.
+
+    Advanced Variable Ordering: Consider advanced variable ordering techniques, such as Sifting and Symmetry Breaking, to fine-tune the variable arrangement and improve BDD performance.
+
+    Reduce Clause Complexity: Before creating the BDD, preprocess the CNF clauses to simplify them. This can involve clause subsumption, clause resolution, or other techniques to reduce the overall complexity of the problem.
+
+    Multi-Terminal BDDs: For problems with multiple output functions, consider using Multi-Terminal BDDs (MTBDDs) to share common substructures and improve efficiency.
+
+    Parallelization: Apply parallel processing techniques to speed up BDD construction and manipulation, especially during bucket elimination and dynamic reordering steps.
+*/
+
 #[derive(Debug, Clone)]
 pub struct BddVarOrdering {
     pub variables: Vec<BddVar>,
