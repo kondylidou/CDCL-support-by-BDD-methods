@@ -542,7 +542,6 @@ impl Bdd {
         new_nodes.push(BddNode::mk_one(BddVar { name: i32::MAX, score: 0.0 }));
 
         for (new_index, (old_index, &node)) in sorted_nodes.iter().enumerate() {
-            println!("{:?}", node);
             let old_pointer = BddPointer::new(*old_index);
             let new_pointer = BddPointer::new(new_index + 2); // because we skipped the terminals
             
@@ -563,25 +562,25 @@ impl Bdd {
         let mut current_score = self.calculate_nec_score(ordering);
 
         // Create a Vec of keys for iteration
-        let keys: Vec<i32> = ordering.keys().cloned().collect();
+        let keys: Vec<i32> = ordering.keys().filter(|&var| !var.eq(&i32::MAX)).cloned().collect();
 
         for (i, &var_i) in keys.iter().enumerate() {
-            for (j, &var_j) in keys.iter().enumerate().skip(i + 1) {
+            for (_, &var_j) in keys.iter().enumerate().skip(i + 1) {
                 // Clone the ordering to make modifications
                 let mut new_ordering = ordering.clone();
                 
                 // Swap variable positions
-                new_ordering.insert(var_i, j);
-                new_ordering.insert(var_j, i);
-
+                new_ordering.insert(var_i,  *ordering.get(&var_j).unwrap());
+                new_ordering.insert(var_j,  *ordering.get(&var_i).unwrap());
+               
                 // Calculate the score for the current variable order using the NEC heuristic
                 let score = self.calculate_nec_score(&new_ordering);
 
                 if score < current_score {
                     current_score = score;
                     // Update the original ordering with the modified new_ordering
-                    ordering.insert(var_i, j);
-                    ordering.insert(var_j, i);
+                    ordering.insert(var_i, *ordering.get(&var_j).unwrap());
+                    ordering.insert(var_j, *ordering.get(&var_i).unwrap());
                     self.reorder_variables(ordering); // Reorder the BDD nodes
                 }
             }
@@ -693,6 +692,24 @@ mod tests {
         bdd
     }
 
+    fn create_sample_bdd_complicated() -> Bdd {
+        let mut bdd = Bdd::new();
+    
+        let x1 = BddVar::new(1, 0.0);
+        let x2 = BddVar::new(2, 0.0);
+        let x3 = BddVar::new(3, 0.0);
+    
+        let node3: BddNode = BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
+        let node2: BddNode = BddNode::mk_node(x2.clone(),  BddPointer::new(2), BddPointer::new_zero());
+        let node4: BddNode = BddNode::mk_node(x1.clone(), BddPointer::new(3), BddPointer::new(2));
+    
+        bdd.nodes.push(node3);
+        bdd.nodes.push(node2);
+        bdd.nodes.push(node4);
+    
+        bdd
+    }
+
     #[test]
     fn test_var_of_ptr() {
         let bdd = create_sample_bdd();
@@ -718,22 +735,55 @@ mod tests {
     }
 
     #[test]
+    fn test_reorder_variables_complicated() {
+        let mut bdd = create_sample_bdd_complicated();
+        let mut ordering = HashMap::with_capacity(4); // Set initial capacity to accommodate indices 0, 1, and 2
+        ordering.insert(2, 0);
+        ordering.insert(1, 1);
+        ordering.insert(3, 2);
+        ordering.insert(i32::MAX, 3);
+
+        bdd.reorder_variables(&mut ordering);
+
+        // Assert the correct reordering has occurred
+        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 1, 2]);
+    }
+
+    #[test]
     fn test_sift_variables_nec() {
         let mut bdd = create_sample_bdd();
         let mut ordering = HashMap::new();
         ordering.insert(2, 0);
         ordering.insert(1, 1);
         ordering.insert(3, 2);
+        ordering.insert(i32::MAX, 3);
 
         bdd.sift_variables_nec(&mut ordering);
 
         // Assert the correct reordering has occurred
         let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
-        assert_eq!(var_order, vec![i32::MAX, i32::MAX, 1, 2, 3]);
+        assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 2, 1]);
     }
 
     #[test]
-    fn test_reorder_variables2() {
+    fn test_sift_variables_nec_complicated() {
+        let mut bdd = create_sample_bdd_complicated();
+        let mut ordering = HashMap::new();
+        ordering.insert(2, 0);
+        ordering.insert(1, 1);
+        ordering.insert(3, 2);
+        ordering.insert(i32::MAX, 3);
+
+        bdd.sift_variables_nec(&mut ordering);
+
+        // Assert the correct reordering has occurred
+        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 2, 1]);
+    }
+
+    #[test]
+    fn test_reorder_variables_detailed() {
         let mut bdd = create_sample_bdd();
         let mut ordering = HashMap::new();
         ordering.insert(i32::MAX, 0);
