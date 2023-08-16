@@ -1,11 +1,5 @@
 use crate::expr::bool_expr::{self, Clause};
-use crate::variable_ordering::var_ordering::{self, BddVarOrdering};
-use crate::{
-    bdd_util::{BddNode, BddPointer, BddVar},
-    expr::bool_expr::Expr,
-};
-use std::cmp::Ordering::*;
-use std::cmp::Ordering;
+use crate::bdd_util::{BddNode, BddPointer, BddVar};
 use std::collections::{HashMap, HashSet};
 use std::iter::Map;
 use std::ops::Range;
@@ -16,7 +10,9 @@ use std::ops::Range;
 
 #[derive(Clone, Debug)]
 pub struct Bdd {
-    nodes: Vec<BddNode>
+    nodes: Vec<BddNode>,
+    // cache for memoization
+    cache: HashMap<(BddPointer, BddPointer), BddPointer>,
 }
 
 impl Bdd {
@@ -29,7 +25,7 @@ impl Bdd {
         let max_ptr = BddVar::new(i32::MAX, 0.0);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
-        Bdd { nodes }
+        Bdd { nodes, cache: HashMap::new() }
     }
 
     fn new_with_capacity(cap: usize) -> Bdd {
@@ -39,7 +35,7 @@ impl Bdd {
         let max_ptr = BddVar::new(i32::MAX, 0.0);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
-        Bdd { nodes }
+        Bdd { nodes, cache: HashMap::new() }
     }
 
     fn is_full(&self) -> bool {
@@ -130,13 +126,13 @@ impl Bdd {
 
     /// This method creates a `Bdd` corresponding to the $\phi \land \psi$ formula, where $\phi$ and $\psi$
     /// are the two given `Bdd`s.
-    pub fn and(&self, other: &Bdd, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
+    pub fn and(&mut self, other: &Bdd, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
         self.apply(other, bool_expr::and, ordering)
     }
 
     /// This method creates a `Bdd` corresponding to the $\phi \lor \psi$ formula, where $\phi$ and $\psi$
     /// are the two given `Bdd`s.
-    pub fn or(&self, other: &Bdd, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
+    pub fn or(&mut self, other: &Bdd, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
         self.apply(other, bool_expr::or, ordering)
     }
 
@@ -153,7 +149,7 @@ impl Bdd {
                 node.high.flip_if_terminal();
                 node.low.flip_if_terminal();
             }
-            Bdd { nodes }
+            Bdd { nodes, cache: HashMap::new() }
         }
     }
 
@@ -230,27 +226,26 @@ impl Bdd {
     }
 
 
-    /*
+    /* TODO to fix 
     /// Convert this `Bdd` to a `BooleanExpression`.
-    pub fn to_bool_expr(&self) -> Expr {
+    pub fn to_clause_vector(&self) -> Vec<Clause> {
         if self.is_false() {
-            return Expr::Const(false);
+            return vec![Clause { literals: HashSet::from_iter(vec![Expr::Const(false)]) }];
         }
         if self.is_true() {
-            return Expr::Const(true);
+            return vec![Clause { literals: HashSet::from_iter(vec![Expr::Const(true)]) }];
         }
 
-        let mut res: Vec<Expr> = Vec::with_capacity(self.0.len());
-        res.push(Expr::Const(false)); // fake terminals
-        res.push(Expr::Const(true)); // never used
-        for node in 2..self.0.len() {
+        let mut res: Vec<Clause> = Vec::with_capacity(self.nodes.len());
+        for node in 2..self.nodes.len() { // skip terminals 
             // skip terminals
-            let bdd_var = self.0[node].var;
+            let bdd_var = self.nodes[node].var;
             let var_name = bdd_var.name;
 
-            let low = self.0[node].low;
-            let high = self.0[node].high;
-            let expr = if low.is_terminal() && high.is_terminal() {
+            let low = self.nodes[node].low;
+            let high = self.nodes[node].high;
+
+            let clause = if low.is_terminal() && high.is_terminal() {
                 // variable
                 if low.is_zero() && high.is_one() {
                     Expr::Var(var_name)
@@ -304,10 +299,11 @@ impl Bdd {
         }
 
         res.last().unwrap().clone()
-    }*/
+    }
+    */
 
     /// This method merges two Bdds
-    fn apply<T>(&self, other: &Bdd, op: T, ordering: &std::collections::HashMap<i32, usize>) -> Bdd
+    fn apply<T>(&mut self, other: &Bdd, op: T, ordering: &std::collections::HashMap<i32, usize>) -> Bdd
     where
         T: Fn(Option<bool>, Option<bool>) -> Option<bool>,
     {
@@ -356,82 +352,97 @@ impl Bdd {
             if finished_tasks.contains_key(current) {
                 stack.pop();
             } else {
-                let (lft, rgt) = (current.left, current.right);
-                // find the lowest variable of the two nodes
-                let (l_var, r_var) = (self.var_of_ptr(lft), other.var_of_ptr(rgt));
-
-                // The min variable is now the one with the higher score, so
-                // the smallest index in the mapping
-                let l_var_index = ordering.get(&l_var.name).unwrap();
-                let r_var_index = ordering.get(&r_var.name).unwrap();
-                let min_var = if l_var_index < r_var_index {
-                    l_var
-                } else {
-                    r_var
-                };
-
-                // If the nodes have the same index the two low branches are paired
-                // and apply recursively computed on them. Similarly for the high branches.
-                // If they have different indices we proceed by pairing the node
-                // with lowest index with the low- and high- branches of the other.
-                let (l_low, l_high) = if l_var.eq(&min_var) {
-                    (self.low_node_ptr(lft), self.high_node_ptr(lft))
-                } else {
-                    (lft, lft)
-                };
-                let (r_low, r_high) = if l_var == r_var || r_var.eq(&min_var) {
-                    (other.low_node_ptr(rgt), other.high_node_ptr(rgt))
-                } else {
-                    (rgt, rgt)
-                };
-
-                // Two tasks which correspond to the two recursive sub-problems we need to solve.
-                let sub_left = Task {
-                    left: l_low,
-                    right: r_low,
-                };
-                let sub_right = Task {
-                    left: l_high,
-                    right: r_high,
-                };
-
-                let new_low: Option<BddPointer> = op(l_low.as_bool(), r_low.as_bool())
-                    .map(BddPointer::from_bool)
-                    .or(finished_tasks.get(&sub_left).cloned());
-
-                let new_high: Option<BddPointer> = op(l_high.as_bool(), r_high.as_bool())
-                    .map(BddPointer::from_bool)
-                    .or(finished_tasks.get(&sub_right).cloned());
-
-                if let (Some(new_low), Some(new_high)) = (new_low, new_high) {
-                    if new_low == new_high {
-                        finished_tasks.insert(*current, new_low);
-                    } else {
-                        let node = BddNode::mk_node(min_var, new_low, new_high);
-                        if let Some(idx) = nodes_map.get(&node) {
-                            // Node already exists, just make it a result of this computation.
-                            finished_tasks.insert(*current, *idx);
-                        } else {
-                            // Node does not exist, it needs to be pushed to result.
-                            bdd.push_node(node);
-                            nodes_map.insert(node, bdd.root_pointer());
-                            finished_tasks.insert(*current, bdd.root_pointer());
-                        }
-                    }
-                    // If both values are computed, mark this task as resolved.
+                let cached_result = self.cache.get(&(current.left, current.right)).cloned();
+                if let Some(result) = cached_result {
+                    finished_tasks.insert(*current, result);
                     stack.pop();
-                } else {
-                    // add the subtasks to stack
-                    if new_low.is_none() {
-                        stack.push(sub_left);
-                    }
-                    if new_high.is_none() {
-                        stack.push(sub_right);
+                } else { 
+                    let (lft, rgt) = (current.left, current.right);
+                    // find the lowest variable of the two nodes
+                    let (l_var, r_var) = (self.var_of_ptr(lft), other.var_of_ptr(rgt));
+
+                    // The min variable is now the one with the higher score, so
+                    // the smallest index in the mapping
+                    let l_var_index = ordering.get(&l_var.name).unwrap();
+                    let r_var_index = ordering.get(&r_var.name).unwrap();
+                    let min_var = if l_var_index < r_var_index {
+                        l_var
+                    } else {
+                        r_var
+                    };
+
+                    // If the nodes have the same index the two low branches are paired
+                    // and apply recursively computed on them. Similarly for the high branches.
+                    // If they have different indices we proceed by pairing the node
+                    // with lowest index with the low- and high- branches of the other.
+                    let (l_low, l_high) = if l_var.eq(&min_var) {
+                        (self.low_node_ptr(lft), self.high_node_ptr(lft))
+                    } else {
+                        (lft, lft)
+                    };
+                    let (r_low, r_high) = if l_var == r_var || r_var.eq(&min_var) {
+                        (other.low_node_ptr(rgt), other.high_node_ptr(rgt))
+                    } else {
+                        (rgt, rgt)
+                    };
+
+                    // Two tasks which correspond to the two recursive sub-problems we need to solve.
+                    let sub_left = Task {
+                        left: l_low,
+                        right: r_low,
+                    };
+                    let sub_right = Task {
+                        left: l_high,
+                        right: r_high,
+                    };
+
+                    let new_low: Option<BddPointer> = op(l_low.as_bool(), r_low.as_bool())
+                        .map(BddPointer::from_bool)
+                        .or(finished_tasks.get(&sub_left).cloned());
+
+                    let new_high: Option<BddPointer> = op(l_high.as_bool(), r_high.as_bool())
+                        .map(BddPointer::from_bool)
+                        .or(finished_tasks.get(&sub_right).cloned());
+
+                
+                    if let (Some(new_low), Some(new_high)) = (new_low, new_high) {
+                        if new_low == new_high {
+                            finished_tasks.insert(*current, new_low);
+                        } else {
+                            let node = BddNode::mk_node(min_var, new_low, new_high);
+                            if let Some(idx) = nodes_map.get(&node) {
+                                // Node already exists, just make it a result of this computation.
+                                finished_tasks.insert(*current, *idx);
+                            } else {
+                                // Node does not exist, it needs to be pushed to result.
+                                bdd.push_node(node);
+                                nodes_map.insert(node, bdd.root_pointer());
+                                finished_tasks.insert(*current, bdd.root_pointer());
+                            }
+                        }
+                        // Cache the result
+                        self.cache.insert((current.left, current.right), bdd.root_pointer());
+                        finished_tasks.insert(*current, bdd.root_pointer());
+
+                        // If both values are computed, mark this task as resolved.
+                        stack.pop();
+                    } else {
+                        // add the subtasks to stack
+                        if new_low.is_none() {
+                            stack.push(sub_left);
+                        }
+                        if new_high.is_none() {
+                            stack.push(sub_right);
+                        }
                     }
                 }
             }
         }
         bdd
+    }
+
+    fn clear_cache(&mut self) {
+        self.cache.clear();
     }
 
     pub fn build(expressions: Vec<Clause>, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Self {
@@ -526,6 +537,7 @@ impl Bdd {
     /// Instead, the primary goal of variable reordering is to potentially improve the performance and efficiency of BDD operations, 
     /// such as BDD minimization, traversal, and manipulation.
     fn reorder_variables(&mut self, ordering: &HashMap<i32, usize>) {
+        self.clear_cache();
         let mut nodes_map: HashMap<BddPointer, BddPointer> = HashMap::new();
         let mut sorted_nodes: Vec<_> = self.nodes.iter().enumerate().skip(2).collect();
         
@@ -645,29 +657,6 @@ impl PartialEq for Bdd {
             && (self.nodes.iter().all(|x| other.nodes.contains(x)))
             && (other.nodes.iter().all(|y| self.nodes.contains(y)))
     }
-}
-
-fn var_asc_cmp(x: &usize, y: &usize) -> Ordering {
-    if x.eq(&y) {
-        Equal
-    } else if x < y {
-        Less
-    } else {
-        Greater
-    }
-}
-
-fn get_key_for_value<'a, K, V>(map: &'a HashMap<K, V>, target_value: &'a V) -> Option<&'a K>
-where
-    K: std::cmp::Eq + std::hash::Hash,
-    V: std::cmp::Eq,
-{
-    for (key, value) in map.iter() {
-        if value == target_value {
-            return Some(key);
-        }
-    }
-    None
 }
 
 #[cfg(test)]
@@ -813,521 +802,23 @@ mod tests {
         assert_eq!(bdd.nodes[4].low.to_index(), 3);
         assert_eq!(bdd.nodes[4].high.to_index(), 1);
     }
-}
-
-/*
-#[cfg(test)]
-mod tests {
-    use crate::{
-        bdd::Bdd,
-        bdd_util::{BddNode, BddPointer, BddVar},
-        expr::bool_expr::{self, Expr},
-        parser::parse::parse_dimacs,
-        variable_ordering::var_ordering::BddVarOrdering,
-    };
-
-    fn do_vecs_match<T: PartialEq>(a: &Vec<T>, b: &Vec<T>) -> bool {
-        let difference: Vec<_> = a.into_iter().filter(|item| !b.contains(item)).collect();
-        a.len() == b.len() && difference.is_empty()
-    }
-
-    pub fn resolve_pairs(pairs: Vec<(Expr, Expr)>) -> Vec<Expr> {
-        let mut new_clauses = Vec::new();
-        for (expr1, expr2) in pairs {
-            let new_clause = expr1.resolution(&expr2);
-            new_clauses.push(Expr::parse_clause(&new_clause));
-        }
-        new_clauses
-    }
-
-    #[test]
-    pub fn test_create_bdds_from_file1() {
-        let path: &str = "tests/test1.cnf";
-
-        // create the Dimacs instance
-        let dimacs = parse_dimacs(path);
-
-        // create the vector of the parsed expressions
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-
-        let mut expr_res = Vec::new();
-
-        for bdd in bdd_vec {
-            expr_res.push(bdd.to_bool_expr());
-        }
-    }
-
-    #[test]
-    pub fn test_refutation_resolution_rule1() {
-        // 83 16 65 0
-        // 83 16 -65 0
-        let input: &str = "tests/test5.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[1].clone();
-        let merged_bdd = bdd_vec[0].resolve(&snd, &var_ordering.ordering);
-
-        let mut ref_res_bdd = Bdd::new();
-        let node1 = BddNode::mk_node(
-            BddVar::new(16, 0.333),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        let node2 = BddNode::mk_node(
-            BddVar::new(83, 0.333),
-            BddPointer::new(2),
-            BddPointer::new_one(),
-        );
-
-        ref_res_bdd.push_node(node1);
-        ref_res_bdd.push_node(node2);
-
-        assert_eq!(merged_bdd, ref_res_bdd);
-    }
-
-    #[test]
-    pub fn test_refutation_resolution_rule2() {
-        // 83 16 -65 0
-        // 83 -16 65 0
-        let input: &str = "tests/test5.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[2].clone();
-        let merged_bdd = bdd_vec[1].resolve(&snd, &var_ordering.ordering);
-
-        let mut ref_res_bdd = Bdd::new();
-        let node = BddNode::mk_node(
-            BddVar::new(83, 0.333),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-
-        ref_res_bdd.push_node(node);
-
-        assert_eq!(merged_bdd, ref_res_bdd);
-    }
-
-    #[test]
-    pub fn resolution_1_1() {
-        //83 0
-        //-83 0
-        let input: &str = "tests/test6.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[2].clone();
-        let merged_bdd = bdd_vec[1].resolve(&snd, &var_ordering.ordering);
-        let res_bdd = Bdd::new();
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_2_1() {
-        //83 16 0
-        //-83 0
-        let input: &str = "tests/test6.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[1].clone();
-        let merged_bdd = bdd_vec[0].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node = BddNode::mk_node(
-            BddVar::new(16, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node);
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_1_2() {
-        //83 0
-        //-83 16 0
-        let input: &str = "tests/test6.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[3].clone();
-        let merged_bdd = bdd_vec[2].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node = BddNode::mk_node(
-            BddVar::new(16, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node);
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_2_2_same_vars() {
-        //83 16  0
-        //-83 16 0
-        //-83 0 (we need this to have the correct variable ordering)
-        let input: &str = "tests/test7.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[1].clone();
-        let merged_bdd = bdd_vec[0].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node = BddNode::mk_node(
-            BddVar::new(16, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node);
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_2_2_double_res() {
-        //83 -16  0
-        //-83 16 0
-        //-83 0 (we need this to have the correct variable ordering)
-        let input: &str = "tests/test7.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[2].clone();
-        let merged_bdd = bdd_vec[1].resolve(&snd, &var_ordering.ordering);
-        let res_bdd = Bdd::new();
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_2_2_same_vars_res_on_b() {
-        //83 -16  0
-        //83 16 0
-        let input: &str = "tests/test7.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[3].clone();
-        let merged_bdd = bdd_vec[2].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node = BddNode::mk_node(
-            BddVar::new(83, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node);
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_2_2_dif_vars() {
-        //83 16 0
-        //-83 65 0
-        //-83 0
-        //-83 0
-        //16 0
-        let input: &str = "tests/test8.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[1].clone();
-        let merged_bdd = bdd_vec[0].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node1 = BddNode::mk_node(
-            BddVar::new(16, 0.5),
-            BddPointer::new(2),
-            BddPointer::new_one(),
-        );
-        let node2 = BddNode::mk_node(
-            BddVar::new(65, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node1);
-        res_bdd.push_node(node2);
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_2_2_dif_vars_res_on_b() {
-        //83 -16 0
-        //16 65 0
-        let input: &str = "tests/test8.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[3].clone();
-        let merged_bdd = bdd_vec[2].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node1 = BddNode::mk_node(
-            BddVar::new(83, 0.5),
-            BddPointer::new(2),
-            BddPointer::new_one(),
-        );
-        let node2 = BddNode::mk_node(
-            BddVar::new(65, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node2);
-        res_bdd.push_node(node1);
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_3_3() {
-        //83 16 65 0
-        //-83 16 65 0
-        //-83 0
-        //-83 0
-        //16 0
-        let input: &str = "tests/test9.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[1].clone();
-        let merged_bdd = bdd_vec[0].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node1 = BddNode::mk_node(
-            BddVar::new(16, 0.5),
-            BddPointer::new(2),
-            BddPointer::new_one(),
-        );
-        let node2 = BddNode::mk_node(
-            BddVar::new(65, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node1);
-        res_bdd.push_node(node2);
-        assert_eq!(merged_bdd, res_bdd);
-    }
-    #[test]
-    pub fn resolution_3_3_dif_vars_res_on_d() {
-        // 83 -13 16 0
-        // 16 65 13 0
-        let input: &str = "tests/test10.cnf";
-        let dimacs = parse_dimacs(input);
-        let clause_set = bool_expr::Expr::parse_clauses(&dimacs.clauses);
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-        let mut bdd_vec = Vec::new();
-
-        for expr in clause_set.clone() {
-            bdd_vec.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        let snd = bdd_vec[1].clone();
-        let merged_bdd = bdd_vec[0].resolve(&snd, &var_ordering.ordering);
-        let mut res_bdd = Bdd::new();
-        let node1 = BddNode::mk_node(
-            BddVar::new(83, 0.5),
-            BddPointer::new(3),
-            BddPointer::new_one(),
-        );
-        let node2 = BddNode::mk_node(
-            BddVar::new(16, 0.5),
-            BddPointer::new(2),
-            BddPointer::new_one(),
-        );
-        let node3 = BddNode::mk_node(
-            BddVar::new(65, 0.5),
-            BddPointer::new_zero(),
-            BddPointer::new_one(),
-        );
-        res_bdd.push_node(node3);
-        res_bdd.push_node(node2);
-        res_bdd.push_node(node1);
-        assert_eq!(merged_bdd, res_bdd);
-    }
 
     /*
     #[test]
-    pub fn test_resolution_simple() {
-        let path: &str = "/home/lid/Desktop/LMU/PhD/CDCL-support-by-BDD-methods/tests/test11.cnf";
+    pub fn test_to_clause_vector() {
+        let path: &str = "tests/test1.cnf";
 
         // create the Dimacs instance
-        let dimacs = parse_dimacs(path);
+        let dimacs = Expr::parse_dimacs_cnf_file(path).unwrap();
 
         // build the variable ordering
         let var_ordering = BddVarOrdering::new(dimacs);
 
-        let mut clause_set = Vec::new();
-        let mut bdd_vec = Vec::new();
-        let cloned_buckets= var_ordering.buckets.clone();
+        let bdd = var_ordering.build_bdd();
 
-        // make the pairs in each bucket
-        for (_, mut bucket) in var_ordering.buckets {
-            bdd_vec.extend(bucket.process_bucket_bdd(&var_ordering.variables, &var_ordering.ordering));
-        }
-        for (_, mut bucket) in cloned_buckets {
-            let pairs = bucket.make_pairs();
-            let res_clauses: Vec<Expr> = resolve_pairs(pairs);
-            if !res_clauses.is_empty() {
-                clause_set.push(res_clauses);
-            }
-        }
-        let mut res_clauses = Vec::new();
-        for bdd in bdd_vec {
-            res_clauses.push(bdd.to_bool_expr());
-        }
-        assert_eq!(clause_set, vec![res_clauses])
-    }
+        let res = bdd.to_clause_vector();
 
-    #[test]
-    pub fn test_resolution_from_bench() {
-        let path: &str = "/home/lid/Desktop/LMU/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/sgen4-unsat-65-1.cnf";
-
-        // create the Dimacs instance
-        let dimacs = parse_dimacs(path);
-
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-
-        let mut bdd_vec_resolution_functions = Vec::new();
-        let mut bdd_vec_resolution_bdds = Vec::new();
-        let cloned_buckets= var_ordering.buckets.clone();
-
-        for (_, mut bucket) in cloned_buckets {
-            let pairs = bucket.make_pairs();
-            let resolution: Vec<Expr> = resolve_pairs(pairs);
-            if !resolution.is_empty() {
-                let mut bucket_bdds = Vec::new();
-                for expr in resolution {
-                    bucket_bdds.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-                }
-                if !bucket_bdds.is_empty() {
-                    bdd_vec_resolution_functions.push(bucket_bdds);
-                }
-            }
-        }
-
-        for (_, mut bucket) in var_ordering.buckets {
-            println!("{:?}", bucket);
-            let processed_bucket = bucket.process_bucket_bdd(&var_ordering.variables, &var_ordering.ordering);
-            println!("{:?}", processed_bucket);
-            if !processed_bucket.is_empty() {
-                let mut bucket_bdds = Vec::new();
-                for bdd in processed_bucket {
-                    bucket_bdds.push(bdd);
-                }
-                if !bucket_bdds.is_empty() {
-                    bdd_vec_resolution_bdds.push(bucket_bdds);
-                }
-            }
-        }
-
-        assert_eq!(bdd_vec_resolution_bdds, bdd_vec_resolution_functions)
-
-    }
-
-    #[test]
-    pub fn resolution_specific() {
-        let path: &str = "/home/lid/Desktop/LMU/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/sgen4-unsat-65-1.cnf";
-
-        // create the Dimacs instance
-        let dimacs = parse_dimacs(path);
-
-        // build the variable ordering
-        let var_ordering = BddVarOrdering::new(dimacs);
-        let mut bucket = Bucket {
-            index: 27,
-            clauses: vec![Expr::Or(Box::new(Expr::Var(24)), Box::new(Expr::Or(Box::new(Expr::Not(Box::new(Expr::Var(21)))), Box::new(Expr::Var(27))))), Expr::Or(Box::new(Expr::Not(Box::new(Expr::Var(31)))), Box::new(Expr::Or(Box::new(Expr::Not(Box::new(Expr::Var(27)))), Box::new(Expr::Not(Box::new(Expr::Var(38))))))), Expr::Or(Box::new(Expr::Var(27)), Box::new(Expr::Or(Box::new(Expr::Not(Box::new(Expr::Var(10)))), Box::new(Expr::Var(24))))), Expr::Or(Box::new(Expr::Not(Box::new(Expr::Var(21)))), Box::new(Expr::Or(Box::new(Expr::Var(27)), Box::new(Expr::Not(Box::new(Expr::Var(10)))))))],
-        };
-        println!("{:?}", bucket);
-
-        let mut cloned_bucket = bucket.clone();
-
-        let processed_bucket = bucket.process_bucket_bdd(&var_ordering.variables, &var_ordering.ordering);
-
-        let pairs = cloned_bucket.make_pairs();
-        let resolution: Vec<Expr> = resolve_pairs(pairs);
-        let mut bucket_bdds = Vec::new();
-        if !resolution.is_empty() {
-            for expr in resolution {
-                bucket_bdds.push(expr.to_bdd(&var_ordering.variables, &var_ordering.ordering));
-            }
-        }
-        assert_eq!(processed_bucket, bucket_bdds)
-
+        assert_eq!(dimacs.expressions, res);
     }*/
+
 }
- */

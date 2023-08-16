@@ -1,5 +1,5 @@
 use crate::bdd_util::BddVar;
-use crate::expr::bool_expr::{Expr, Clause};
+use crate::expr::bool_expr::{Clause, Expr};
 use crate::variable_ordering::var_ordering::BddVarOrdering;
 use std::cmp::Ordering;
 use std::cmp::Ordering::*;
@@ -16,7 +16,9 @@ pub struct Dimacs {
 /// For our implementation, we use a simple heuristic to determine the variable ordering:
 /// each variable is assigned a score, computed as the quotient between the number of clauses
 /// containing the variable and the average arity of those clauses.
-pub fn calculate_scores(var_clause_arities: std::collections::HashMap<i32, Vec<usize>>) -> std::collections::HashMap<i32, f64> {
+pub fn calculate_scores(
+    var_clause_arities: std::collections::HashMap<i32, Vec<usize>>,
+) -> std::collections::HashMap<i32, f64> {
     let mut vars_scores = std::collections::HashMap::new();
     for (var, clause_arities) in var_clause_arities {
         // the number of clauses where the variable appears
@@ -32,7 +34,6 @@ pub fn calculate_scores(var_clause_arities: std::collections::HashMap<i32, Vec<u
     }
     vars_scores
 }
-
 
 #[derive(Clone, Debug)]
 pub struct BddVarOrderingBuilder {
@@ -64,7 +65,11 @@ impl BddVarOrderingBuilder {
     }
 
     /// Similar to `make_variable`, but allows creating multiple variables at the same time.
-    pub fn make_variables(&mut self, var_map: std::collections::HashMap<i32, Expr>, vars_scores: &std::collections::HashMap<i32, f64>) -> Vec<BddVar> {
+    pub fn make_variables(
+        &mut self,
+        var_map: std::collections::HashMap<i32, Expr>,
+        vars_scores: &std::collections::HashMap<i32, f64>,
+    ) -> Vec<BddVar> {
         let mut variables = Vec::new();
         for (var_name, _) in var_map {
             // TODO handle unwrap here
@@ -82,7 +87,7 @@ impl BddVarOrderingBuilder {
         let variables = self.make_variables(dimacs.var_map, &dimacs.vars_scores);
 
         let mut ordering: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
-    
+
         let mut v: Vec<_> = dimacs.vars_scores.iter().collect();
         // v is a sorted vector in decreasing order according to the scores
         v.sort_by(|x, y| BddVarOrderingBuilder::var_dec_cmp(&x.1, &y.1));
@@ -115,8 +120,11 @@ impl BddVarOrderingBuilder {
 #[cfg(test)]
 mod tests {
 
-    use crate::{expr::bool_expr::Expr, variable_ordering::var_ordering::BddVarOrdering, bdd::{self, Bdd}};
-
+    use crate::{
+        bdd::{self, Bdd},
+        expr::bool_expr::Expr,
+        variable_ordering::var_ordering::BddVarOrdering,
+    };
 
     #[test]
     fn variable_scores() {
@@ -150,10 +158,9 @@ mod tests {
         var_index_mapping.insert(5, 4);
         var_index_mapping.insert(i32::MAX, 5);
 
-        let bdd = Bdd::build(var_ordering.expressions, &var_ordering.variables, &var_ordering.ordering);
+        let bdd = var_ordering.build_bdd();
         println!("{:?}", bdd);
- 
+
         assert_eq!(var_index_mapping, var_ordering.ordering);
     }
-
 }

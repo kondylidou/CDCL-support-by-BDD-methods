@@ -2,7 +2,10 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 use crate::{
-    bdd::Bdd, bdd_util::BddVar, expr::bool_expr::Expr::*, variable_ordering::var_ordering_builder::{Dimacs, self}
+    bdd::Bdd,
+    bdd_util::BddVar,
+    expr::bool_expr::Expr::*,
+    variable_ordering::var_ordering_builder::{self, Dimacs},
 };
 
 /// Recursive implementation of boolean expression.
@@ -14,7 +17,6 @@ pub enum Expr {
 }
 
 impl Expr {
-
     pub fn get_var_name(&self) -> i32 {
         match self {
             Expr::Var(name) => *name,
@@ -22,13 +24,14 @@ impl Expr {
             _ => i32::MAX,
         }
     }
-    
+
     pub fn parse_dimacs_cnf_file(file_path: &str) -> Result<Dimacs, String> {
         let content = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
         let mut var_map: std::collections::HashMap<i32, Expr> = std::collections::HashMap::new();
         // this hashmap contains a variable and the arities of the clauses where
         // this variable is appearing.
-        let mut var_clause_arities: std::collections::HashMap<i32, Vec<usize>> = std::collections::HashMap::new();
+        let mut var_clause_arities: std::collections::HashMap<i32, Vec<usize>> =
+            std::collections::HashMap::new();
         let mut expressions: Vec<Clause> = Vec::new();
         let mut nb_v = 0;
         let mut nb_c = 0;
@@ -38,7 +41,7 @@ impl Expr {
             if tokens.is_empty() {
                 continue; // Skip empty lines
             }
-    
+
             match tokens[0] {
                 "c" => continue, // Skip comments
                 "p" => {
@@ -47,7 +50,7 @@ impl Expr {
                         nb_v = parts[2].parse().unwrap();
                         nb_c = parts[3].parse().unwrap();
                     }
-                },
+                }
                 _ => {
                     let mut literals = HashSet::new();
                     let clause: Vec<i32> = tokens
@@ -66,7 +69,6 @@ impl Expr {
                         literals.insert(Expr::parse_lit(*lit, &mut var_map));
                     }
                     expressions.push(Clause { literals });
-                    
                 }
             }
         }
@@ -77,16 +79,16 @@ impl Expr {
             nb_c,
             var_map,
             vars_scores,
-            expressions
+            expressions,
         };
-    
+
         Ok(dimacs)
     }
-    
+
     fn parse_lit(lit: i32, var_map: &mut std::collections::HashMap<i32, Expr>) -> Expr {
         let var_expr = var_map
-                .entry(lit.abs())
-                .or_insert_with(|| Expr::Var(lit.abs()));
+            .entry(lit.abs())
+            .or_insert_with(|| Expr::Var(lit.abs()));
 
         if lit < 0 {
             Expr::Not(Box::new(var_expr.clone()))
@@ -153,7 +155,7 @@ impl Expr {
                     }
                 }
                 None => None,
-            }
+            },
         }
     }
 
@@ -161,7 +163,11 @@ impl Expr {
     ///
     /// *Panics*:
     /// - Variable wasn't found in variable vector.
-    pub fn to_bdd(&self, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
+    pub fn to_bdd(
+        &self,
+        variables: &Vec<BddVar>,
+        ordering: &std::collections::HashMap<i32, usize>,
+    ) -> Bdd {
         // The construction of a Bdd from a boolean expression proceeds
         // as in the construction of the if-then-else Normalform. An ordering
         // of the variables is fixed. Using the shannon expansion a node
@@ -177,7 +183,7 @@ impl Expr {
                     panic!("Variable {} doesn't exists.", name);
                 }
             }
-            Not(inner) => inner.to_bdd(variables, ordering).negate()
+            Not(inner) => inner.to_bdd(variables, ordering).negate(),
         }
     }
 
@@ -207,7 +213,7 @@ impl std::fmt::Display for Expr {
         match self {
             Const(value) => write!(f, "{}", value),
             Var(name) => write!(f, "{}", name),
-            Not(inner) => write!(f, "!{}", inner)
+            Not(inner) => write!(f, "!{}", inner),
         }
     }
 }
@@ -266,8 +272,17 @@ impl Clause {
         })
     }
 
-    pub fn to_bdd(&self, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
-        let mut bdd = self.literals.iter().next().unwrap().to_bdd(&variables, &ordering);
+    pub fn to_bdd(
+        &self,
+        variables: &Vec<BddVar>,
+        ordering: &std::collections::HashMap<i32, usize>,
+    ) -> Bdd {
+        let mut bdd = self
+            .literals
+            .iter()
+            .next()
+            .unwrap()
+            .to_bdd(&variables, &ordering);
 
         if let Some(expr) = self.literals.iter().next() {
             let temp_bdd = expr.to_bdd(&variables, &ordering);
@@ -315,7 +330,6 @@ impl Clause {
         self.literals = new_literals;
     }
 
-
     /// If a clause consists of only one literal (positive or
     /// negative), this clause is called a unit clause. We fix the
     /// valuation of an atom occurring in a unit clause to the
@@ -332,7 +346,9 @@ impl Clause {
     }
 
     pub fn clause_contains_pos_var(&self, index: i32) -> bool {
-        self.literals.iter().any(|expr| expr.contains_pos_var(index))
+        self.literals
+            .iter()
+            .any(|expr| expr.contains_pos_var(index))
     }
 
     pub fn solve(&self, assignment: &std::collections::HashMap<i32, bool>) -> bool {
@@ -340,9 +356,9 @@ impl Clause {
         for expr in &self.literals {
             assigned_clause.push(expr.set_vars(assignment));
         }
-        assigned_clause.iter().fold(false, |acc, opt| {
-            acc || opt.unwrap_or(false)
-        })
+        assigned_clause
+            .iter()
+            .fold(false, |acc, opt| acc || opt.unwrap_or(false))
     }
 
     pub fn resolve(&self, other: &Clause) -> Clause {
@@ -370,7 +386,6 @@ impl Clause {
             literals: new_literals,
         }
     }
-
 }
 
 impl PartialEq for Clause {
@@ -465,13 +480,15 @@ mod tests {
 
     #[test]
     fn test_solve() {
-        let assignment: std::collections::HashMap<i32, bool> = [(1, true), (2, false), (3, true)]
-            .iter()
-            .cloned()
-            .collect();
+        let assignment: std::collections::HashMap<i32, bool> =
+            [(1, true), (2, false), (3, true)].iter().cloned().collect();
 
         let clause = Clause {
-            literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Not(Box::new(Expr::Var(2))), Expr::Var(3)]),
+            literals: HashSet::from_iter(vec![
+                Expr::Var(1),
+                Expr::Not(Box::new(Expr::Var(2))),
+                Expr::Var(3),
+            ]),
         };
 
         assert_eq!(clause.solve(&assignment), true);
@@ -487,7 +504,8 @@ mod tests {
         let clause2 = Clause {
             literals: literals2,
         };
-        let expected_literals = HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2),Expr::Var(3), Expr::Var(4)]);
+        let expected_literals =
+            HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2), Expr::Var(3), Expr::Var(4)]);
         let expected_result = Clause {
             literals: expected_literals,
         };
@@ -506,7 +524,7 @@ mod tests {
             literals: literals2,
         };
 
-        let expected_literals = HashSet::from_iter(vec![Expr::Var(1),Expr::Var(2), Expr::Var(3)]);
+        let expected_literals = HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2), Expr::Var(3)]);
         let expected_result = Clause {
             literals: expected_literals,
         };

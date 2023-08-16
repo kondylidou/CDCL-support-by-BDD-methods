@@ -1,25 +1,27 @@
 use super::var_ordering_builder::Dimacs;
+use crate::bdd::Bdd;
 use crate::bdd_util::BddVar;
 use crate::expr::bool_expr::Clause;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
 //use itertools::Itertools;
 
 /*
-    Variable Ordering: The choice of variable ordering can significantly impact the performance of BDDs. 
-    By carefully selecting the variable ordering based on heuristics like most-constrained variable or variable interaction, 
+    Variable Ordering: The choice of variable ordering can significantly impact the performance of BDDs.
+    By carefully selecting the variable ordering based on heuristics like most-constrained variable or variable interaction,
     you can reduce the BDD's size and improve efficiency.
 
-    Bucket Clustering: Group variables into buckets based on their interactions. 
-    Variables that frequently appear together in the same clauses or have strong dependencies should be placed in the same bucket. 
+    Bucket Clustering: Group variables into buckets based on their interactions.
+    Variables that frequently appear together in the same clauses or have strong dependencies should be placed in the same bucket.
     Then, apply bucket elimination to each bucket separately.
 
-    Apply Bucket Elimination: In each bucket, perform variable elimination by quantifying out variables that are not essential to the final result. 
+    Apply Bucket Elimination: In each bucket, perform variable elimination by quantifying out variables that are not essential to the final result.
     This reduces the complexity of the BDD and can lead to significant efficiency gains.
 
-    Dynamic Reordering: Apply dynamic variable reordering periodically during BDD construction. 
+    Dynamic Reordering: Apply dynamic variable reordering periodically during BDD construction.
     After performing bucket elimination on each bucket, reevaluate the variable ordering to find an optimal arrangement that reduces the overall BDD size.
 
-    Caching: Implement memoization to cache intermediate BDD results. This avoids redundant computations during BDD construction and can significantly speed up the process.
+    Caching: Implement memoization to cache intermediate BDD results. 
+    This avoids redundant computations during BDD construction and can significantly speed up the process.
 
     Garbage Collection: Periodically remove unused nodes and apply garbage collection to the BDD to keep it compact and efficient.
 
@@ -46,7 +48,25 @@ impl BddVarOrdering {
         builder.make(dimacs)
     }
 
-    /* 
+    pub fn build_bdd(&self) -> Bdd {
+        let mut current_bdd = self.expressions[0].to_bdd(&self.variables, &self.ordering);
+
+        let mut n = 1;
+        while n < self.expressions.len() {
+            let (_, temp_bdd) = rayon::join(
+                || {
+                    //current_bdd.send_learned_clauses(true,clause_database,solver_wrapper)
+                },
+                || self.expressions[n].to_bdd(&self.variables, &self.ordering),
+            );
+
+            current_bdd = current_bdd.and(&temp_bdd, &self.ordering);
+            n += 1;
+        }
+        current_bdd
+    }
+
+    /*
     /// This method represents the method of directional resolution
     /// or bucket elimination for CNF formulas.
     /// The buckets are processed in the reversed order of the
@@ -105,12 +125,12 @@ impl BddVarOrdering {
             }
         }
 
-        
+
         potential_learnt_clauses = potential_learnt_clauses
             .into_iter()
             .unique()
             .collect::<Vec<Expr>>();
-        /* 
+        /*
         unit_clauses = unit_clauses.into_iter().unique().collect::<Vec<Expr>>();
         clauses_to_delete = clauses_to_delete
             .into_iter()
@@ -167,6 +187,5 @@ mod tests {
         //    "Time elapsed for to create first bucket : {:?}",
         //    start.elapsed()
         //);
-        
     }
 }

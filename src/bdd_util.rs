@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 // Nodes are represented as numbers with 0 and 1 reserved for the terminal nodes.
 #[derive(Clone, Debug, Eq, Copy, Hash, Ord, PartialOrd)]
 pub struct BddPointer {
-    pub index: usize
+    pub index: usize,
 }
 
 impl BddPointer {

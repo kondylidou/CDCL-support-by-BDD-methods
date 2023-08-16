@@ -1,26 +1,26 @@
-use std::collections::{HashSet, HashMap};
 use crate::expr::bool_expr::{Clause, Expr};
+use std::collections::{HashMap, HashSet};
 
 /*
-    Clause Structure: Variables that frequently appear together within the same clause tend to interact. 
+    Clause Structure: Variables that frequently appear together within the same clause tend to interact.
     Clauses often capture specific relationships or conditions involving multiple variables.
 
-    Logical Dependencies: Variables that are logically dependent on each other have strong interactions. 
+    Logical Dependencies: Variables that are logically dependent on each other have strong interactions.
     If the presence or absence of one variable directly affects the interpretation of another, they have dependencies.
 
-    Implications: Variables that imply each other's assignments interact. 
+    Implications: Variables that imply each other's assignments interact.
     If the assignment of one variable forces the assignment of another, they have a strong dependency.
 
-    Mutual Exclusivity: Variables that are mutually exclusive often interact. 
+    Mutual Exclusivity: Variables that are mutually exclusive often interact.
     If only one of the variables can be assigned true in a clause, they are dependent.
 
-    Grouping and Patterns: Variables that group together due to shared properties or patterns interact. 
+    Grouping and Patterns: Variables that group together due to shared properties or patterns interact.
     Clusters of variables with similar roles often have dependencies.
 
-    Symmetry Breaking: Variables introduced to break symmetry in the problem often interact. 
+    Symmetry Breaking: Variables introduced to break symmetry in the problem often interact.
     They may play a crucial role in ensuring unique solutions.
 
-    Constraints: Variables that participate in shared constraints or logical conditions interact. 
+    Constraints: Variables that participate in shared constraints or logical conditions interact.
     Variables that are part of the same logical rule or constraint are dependent.
 */
 
@@ -28,7 +28,6 @@ use crate::expr::bool_expr::{Clause, Expr};
 pub struct Bucket(Vec<Clause>);
 
 impl Bucket {
-
     // Function to choose a variable for elimination based on the minimum width heuristic
     fn choose_variable_to_eliminate(&self) -> i32 {
         let mut min_width = usize::MAX;
@@ -36,7 +35,11 @@ impl Bucket {
 
         for clause in &self.0 {
             for lit in &clause.literals {
-                let width = self.0.iter().filter(|&c| c.clause_contains_var(lit.get_var_name())).count();
+                let width = self
+                    .0
+                    .iter()
+                    .filter(|&c| c.clause_contains_var(lit.get_var_name()))
+                    .count();
                 if width < min_width {
                     min_width = width;
                     selected_var = lit.get_var_name();
@@ -46,12 +49,12 @@ impl Bucket {
 
         selected_var
     }
-    
 
     // Method to choose a variable for elimination based on some heuristic
     fn choose_variable_to_eliminate_highest_frequency(&self) -> i32 {
         // Example: Choose the variable with the highest frequency in the bucket
-        let mut var_frequencies: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
+        let mut var_frequencies: std::collections::HashMap<i32, usize> =
+            std::collections::HashMap::new();
 
         for clause in &self.0 {
             for literal in &clause.literals {
@@ -69,11 +72,13 @@ impl Bucket {
 
         chosen_var
     }
-    
+
     // Function to eliminate a variable from the bucket
     fn eliminate_variable(&mut self, var_to_eliminate: i32) {
         // Step 1: Find constraints containing the variable to eliminate
-        let constraints_to_eliminate: Vec<Clause> = self.0.iter()
+        let constraints_to_eliminate: Vec<Clause> = self
+            .0
+            .iter()
             .filter(|clause| clause.clause_contains_var(var_to_eliminate))
             .cloned()
             .collect();
@@ -100,7 +105,7 @@ impl Bucket {
     pub fn process_bucket(&self) -> Result<Vec<Clause>, String> {
         let mut resolved_clauses: Vec<Clause> = Vec::new();
 
-        let (pos_occ, neg_occ): (Vec<Clause>, Vec<Clause>) = self.clauses.clone().into_iter().partition(|clause| 
+        let (pos_occ, neg_occ): (Vec<Clause>, Vec<Clause>) = self.clauses.clone().into_iter().partition(|clause|
             clause.clause_contains_pos_var(self.index));
 
         // No pairs can be built here so we move on to the next bucket
@@ -125,7 +130,7 @@ impl Bucket {
 
         resolved_clauses = resolved_clauses.into_iter().unique().collect::<Vec<Clause>>();
         Ok(resolved_clauses)
-    } 
+    }
     */
 }
 
@@ -135,7 +140,7 @@ type Clauses = Vec<Clause>;
 // Function to group clauses into buckets based on interacting variables
 fn group_clauses_into_buckets_interactions(clauses: Clauses) -> Buckets {
     let interactions: HashMap<i32, Vec<i32>> = find_interacting_variables(&clauses);
-  
+
     let mut buckets: Buckets = Vec::new();
 
     for clause in clauses {
@@ -143,9 +148,12 @@ fn group_clauses_into_buckets_interactions(clauses: Clauses) -> Buckets {
 
         for bucket in &mut buckets {
             if clause.literals.iter().any(|expr| {
-                interactions[&expr.get_var_name()]
-                    .iter()
-                    .any(|var| bucket.0.iter().any(|clause| clause.clause_contains_var(*var)))
+                interactions[&expr.get_var_name()].iter().any(|var| {
+                    bucket
+                        .0
+                        .iter()
+                        .any(|clause| clause.clause_contains_var(*var))
+                })
             }) {
                 bucket.0.push(clause.clone());
                 placed = true;
@@ -169,7 +177,7 @@ fn find_interacting_variables(clauses: &Clauses) -> HashMap<i32, Vec<i32>> {
         for literal in &clause.literals {
             let var = literal.get_var_name();
             let interacting_vars = variable_interactions.entry(var).or_insert(Vec::new());
-            
+
             // Iterate through the rest of the literals in the clause
             for other_literal in clause.literals.iter().filter(|&lit| lit != literal) {
                 let other_var = other_literal.get_var_name();
@@ -204,37 +212,36 @@ fn group_clauses_into_buckets_implications(clauses: Clauses) -> Buckets {
                             }
                         }));
                 }
-            }
-            else if let Expr::Var(var) = literal {
+            } else if let Expr::Var(var) = literal {
                 implications
-                .entry(*var)
-                .or_insert_with(HashSet::new)
-                .extend(clause.literals.iter().filter_map(|lit| {
-                    if let Expr::Not(inner) = lit {
-                        if let Expr::Var(v) = &**inner {
-                            Some(*v)
+                    .entry(*var)
+                    .or_insert_with(HashSet::new)
+                    .extend(clause.literals.iter().filter_map(|lit| {
+                        if let Expr::Not(inner) = lit {
+                            if let Expr::Var(v) = &**inner {
+                                Some(*v)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
-                    } else {
-                        None
-                    }
-                }));
+                    }));
             }
         }
-    }        
-    
+    }
+
     // Group clauses into buckets based on implications
     let mut buckets: Buckets = Vec::new();
     for clause in clauses {
         let mut placed = false;
 
         for bucket in &mut buckets {
-            if clause
-                .literals
-                .iter()
-                .any(|expr| bucket.0.iter().any(|c| c.contains_expr(expr) || c.contains_expr(&Expr::Not(Box::new(expr.clone())))))
-            {
+            if clause.literals.iter().any(|expr| {
+                bucket.0.iter().any(|c| {
+                    c.contains_expr(expr) || c.contains_expr(&Expr::Not(Box::new(expr.clone())))
+                })
+            }) {
                 bucket.0.push(clause.clone());
                 placed = true;
                 break;
@@ -263,7 +270,7 @@ fn bucket_elimination(buckets: &mut Buckets) -> Result<(), String> {
     }
     Result::Ok(())
 
-    /* 
+    /*
     if buckets.len() == 1 {
         let solution = buckets[0].solve(); // Implement final solution extraction
         Ok(solution)
@@ -272,7 +279,6 @@ fn bucket_elimination(buckets: &mut Buckets) -> Result<(), String> {
     }
     */
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -288,17 +294,23 @@ mod tests {
             literals: vec![Expr::Var(2), Expr::Var(3)].into_iter().collect(),
         };
         let bucket = Bucket(vec![clause1.clone(), clause2.clone()]);
-    
+
         let chosen_var = bucket.choose_variable_to_eliminate();
         assert_eq!(chosen_var, 1);
-    }    
+    }
 
     #[test]
     fn test_find_interacting_variables() {
         let clauses = vec![
-            Clause { literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2)]) },
-            Clause { literals: HashSet::from_iter(vec![Expr::Var(2), Expr::Var(3)]) },
-            Clause { literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Var(3)]) },
+            Clause {
+                literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Var(2)]),
+            },
+            Clause {
+                literals: HashSet::from_iter(vec![Expr::Var(2), Expr::Var(3)]),
+            },
+            Clause {
+                literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Var(3)]),
+            },
         ];
 
         let interactions = find_interacting_variables(&clauses);
@@ -326,7 +338,7 @@ mod tests {
 
         // Call the function
         let buckets = group_clauses_into_buckets_interactions(expressions);
-        
+
         // Test assertions
         assert_eq!(buckets.len(), 2);
         assert_eq!(buckets[0].0.len(), 2);
@@ -337,23 +349,19 @@ mod tests {
     fn test_group_clauses_into_buckets_implications() {
         let clauses = vec![
             Clause {
-                literals: vec![
-                    Expr::Var(1),
-                    Expr::Var(2),
-                ].into_iter().collect()
+                literals: vec![Expr::Var(1), Expr::Var(2)].into_iter().collect(),
             },
             Clause {
                 literals: vec![
                     Expr::Not(Box::new(Expr::Var(2))),
                     Expr::Var(3),
                     Expr::Not(Box::new(Expr::Var(4))),
-                ].into_iter().collect()
+                ]
+                .into_iter()
+                .collect(),
             },
             Clause {
-                literals: vec![
-                    Expr::Var(4),
-                    Expr::Var(5),
-                ].into_iter().collect()
+                literals: vec![Expr::Var(4), Expr::Var(5)].into_iter().collect(),
             },
         ];
 
@@ -362,4 +370,3 @@ mod tests {
         assert_eq!(buckets.len(), 2)
     }
 }
-
