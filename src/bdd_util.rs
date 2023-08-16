@@ -3,36 +3,38 @@ use std::cmp::Ordering::{Equal, Greater, Less};
 use std::hash::{Hash, Hasher};
 
 // Nodes are represented as numbers with 0 and 1 reserved for the terminal nodes.
-#[derive(Clone, Debug, Eq, Copy, Hash)]
-pub struct BddPointer(pub u32);
+#[derive(Clone, Debug, Eq, Copy, Hash, Ord, PartialOrd)]
+pub struct BddPointer {
+    pub index: usize
+}
 
 impl BddPointer {
     pub fn new(index: usize) -> BddPointer {
-        BddPointer(index as u32)
+        BddPointer { index }
     }
 
     pub fn new_zero() -> BddPointer {
-        BddPointer(0)
+        BddPointer { index: 0 }
     }
 
     pub fn new_one() -> BddPointer {
-        BddPointer(1)
+        BddPointer { index: 1 }
     }
 
     pub fn is_zero(&self) -> bool {
-        self.0 == 0
+        self.index == 0
     }
 
     pub fn is_one(&self) -> bool {
-        self.0 == 1
+        self.index == 1
     }
 
     pub fn is_terminal(&self) -> bool {
-        self.0 < 2
+        self.index < 2
     }
 
-    pub fn rename(&mut self, new: u32) {
-        self.0 = new;
+    pub fn rename(&mut self, new: usize) {
+        self.index = new;
     }
 
     pub fn from_bool(value: bool) -> BddPointer {
@@ -44,7 +46,7 @@ impl BddPointer {
     }
 
     pub fn as_bool(&self) -> Option<bool> {
-        match self.0 {
+        match self.index {
             0 => Some(false),
             1 => Some(true),
             _ => None,
@@ -52,25 +54,25 @@ impl BddPointer {
     }
 
     pub fn to_index(self) -> usize {
-        self.0 as usize
+        self.index
     }
 
     pub fn flip_if_terminal(&mut self) {
-        if self.0 < 2 {
-            self.0 = (self.0 + 1) % 2;
+        if self.index < 2 {
+            self.index = (self.index + 1) % 2;
         }
     }
 }
 
 impl std::fmt::Display for BddPointer {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_fmt(format_args!("{}", self.0))
+        f.write_fmt(format_args!("{}", self.index))
     }
 }
 
 impl PartialEq for BddPointer {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.index == other.index
     }
 }
 

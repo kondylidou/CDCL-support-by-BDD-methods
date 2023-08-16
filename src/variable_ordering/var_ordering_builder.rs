@@ -115,7 +115,7 @@ impl BddVarOrderingBuilder {
 #[cfg(test)]
 mod tests {
 
-    use crate::{expr::bool_expr::Expr, variable_ordering::var_ordering::BddVarOrdering};
+    use crate::{expr::bool_expr::Expr, variable_ordering::var_ordering::BddVarOrdering, bdd::{self, Bdd}};
 
 
     #[test]
@@ -139,6 +139,7 @@ mod tests {
     fn variable_ordering() {
         let dimacs = Expr::parse_dimacs_cnf_file("tests/test3.cnf").unwrap();
         let var_ordering = BddVarOrdering::new(dimacs);
+        println!("{:?}", var_ordering.ordering);
 
         let mut var_index_mapping: std::collections::HashMap<i32, usize> =
             std::collections::HashMap::new();
@@ -148,6 +149,9 @@ mod tests {
         var_index_mapping.insert(4, 3);
         var_index_mapping.insert(5, 4);
         var_index_mapping.insert(i32::MAX, 5);
+
+        let bdd = Bdd::build(var_ordering.expressions, &var_ordering.variables, &var_ordering.ordering);
+        println!("{:?}", bdd);
  
         assert_eq!(var_index_mapping, var_ordering.ordering);
     }

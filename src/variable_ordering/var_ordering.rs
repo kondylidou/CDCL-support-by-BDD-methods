@@ -6,14 +6,18 @@ use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
 
 /*
     Variable Ordering: The choice of variable ordering can significantly impact the performance of BDDs. 
-    By carefully selecting the variable ordering based on heuristics like most-constrained variable or variable interaction, you can reduce the BDD's size and improve efficiency.
+    By carefully selecting the variable ordering based on heuristics like most-constrained variable or variable interaction, 
+    you can reduce the BDD's size and improve efficiency.
 
     Bucket Clustering: Group variables into buckets based on their interactions. 
-    Variables that frequently appear together in the same clauses or have strong dependencies should be placed in the same bucket. Then, apply bucket elimination to each bucket separately.
+    Variables that frequently appear together in the same clauses or have strong dependencies should be placed in the same bucket. 
+    Then, apply bucket elimination to each bucket separately.
 
-    Apply Bucket Elimination: In each bucket, perform variable elimination by quantifying out variables that are not essential to the final result. This reduces the complexity of the BDD and can lead to significant efficiency gains.
+    Apply Bucket Elimination: In each bucket, perform variable elimination by quantifying out variables that are not essential to the final result. 
+    This reduces the complexity of the BDD and can lead to significant efficiency gains.
 
-    Dynamic Reordering: Apply dynamic variable reordering periodically during BDD construction. After performing bucket elimination on each bucket, reevaluate the variable ordering to find an optimal arrangement that reduces the overall BDD size.
+    Dynamic Reordering: Apply dynamic variable reordering periodically during BDD construction. 
+    After performing bucket elimination on each bucket, reevaluate the variable ordering to find an optimal arrangement that reduces the overall BDD size.
 
     Caching: Implement memoization to cache intermediate BDD results. This avoids redundant computations during BDD construction and can significantly speed up the process.
 

@@ -1,9 +1,12 @@
-use crate::expr::bool_expr;
+use crate::expr::bool_expr::{self, Clause};
+use crate::variable_ordering::var_ordering::{self, BddVarOrdering};
 use crate::{
     bdd_util::{BddNode, BddPointer, BddVar},
     expr::bool_expr::Expr,
 };
-use std::collections::HashMap;
+use std::cmp::Ordering::*;
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 use std::iter::Map;
 use std::ops::Range;
 
@@ -12,47 +15,60 @@ use std::ops::Range;
 // needs to be found for this expression so that the Bdd can be constructed.
 
 #[derive(Clone, Debug)]
-pub struct Bdd(pub Vec<BddNode>);
+pub struct Bdd {
+    nodes: Vec<BddNode>
+}
 
 impl Bdd {
     /// Create a new empty Bdd. The terminal pointers are
     /// inserted into the vector of nodes.
-    pub fn new() -> Bdd {
+    fn new() -> Bdd {
         let mut nodes = Vec::new();
         // Maximum number as pointer as in the apply method always the smaller var is
         // selected and we want to replace these nodes.
         let max_ptr = BddVar::new(i32::MAX, 0.0);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
-        Bdd(nodes)
+        Bdd { nodes }
     }
 
-    pub fn new_with_capacity(cap: usize) -> Bdd {
+    fn new_with_capacity(cap: usize) -> Bdd {
         let mut nodes = Vec::with_capacity(cap);
         // Maximum number as pointer as in the apply method always the smaller var is
         // selected and we want to replace these nodes.
         let max_ptr = BddVar::new(i32::MAX, 0.0);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
-        Bdd(nodes)
+        Bdd { nodes }
     }
 
-    pub fn is_full(&self) -> bool {
-        self.0.capacity().eq(&self.0.len())
+    fn is_full(&self) -> bool {
+        self.nodes.capacity().eq(&self.nodes.len())
     }
 
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.size().eq(&2)
     }
 
     /// Get the variable of a specific pointer in the Bdd.
     pub fn var_of_ptr(&self, ptr: BddPointer) -> BddVar {
-        self.0[ptr.to_index()].var
+        self.nodes[ptr.to_index()].var
     }
 
+    // Get a pointer to the BDD node with the specified variable
+    fn ptr_of_node_with_var_name(&self, var_name: i32) -> Option<BddPointer> {
+        for ptr in self.indices() {
+            if self.var_of_ptr(ptr).name.eq(&var_name) {
+                return Some(ptr);
+            }
+        }
+        None
+    }
+    
+
     /// Insert a node into the vector of nodes of the Bdd.
-    pub fn push_node(&mut self, node: BddNode) {
-        self.0.push(node);
+    fn push_node(&mut self, node: BddNode) {
+        self.nodes.push(node);
     }
 
     /// Create a new Bdd from a variable and connect it to terminal pointers 0 and 1.
@@ -76,14 +92,14 @@ impl Bdd {
     }
 
     /// Create a new Bdd for the false formula.
-    pub fn new_false(var: BddVar) -> Bdd {
+    fn new_false(var: BddVar) -> Bdd {
         let mut bdd = Bdd::new();
         bdd.push_node(BddNode::mk_zero(var));
         bdd
     }
 
     /// Create a new Bdd for the true formula.
-    pub fn new_true(var: BddVar) -> Bdd {
+    fn new_true(var: BddVar) -> Bdd {
         let mut bdd = Bdd::new();
         bdd.push_node(BddNode::mk_zero(var));
         bdd.push_node(BddNode::mk_one(var));
@@ -91,7 +107,7 @@ impl Bdd {
     }
 
     /// Create a new Bdd for a negated variable.
-    pub fn new_not_var(var: BddVar) -> Bdd {
+    fn new_not_var(var: BddVar) -> Bdd {
         let mut bdd = Bdd::new();
         bdd.push_node(BddNode::mk_node(
             var,
@@ -131,29 +147,29 @@ impl Bdd {
         } else if self.is_false() {
             Bdd::new_true(BddVar::new(i32::MAX, 0.0))
         } else {
-            let mut nodes = self.0.clone();
+            let mut nodes = self.nodes.clone();
             for node in nodes.iter_mut().skip(2) {
                 // skip terminals
                 node.high.flip_if_terminal();
                 node.low.flip_if_terminal();
             }
-            Bdd(nodes)
+            Bdd { nodes }
         }
     }
 
     /// The number of nodes in a Bdd.
-    pub fn size(&self) -> usize {
-        self.0.len()
+    fn size(&self) -> usize {
+        self.nodes.len()
     }
 
     /// True if a Bdd is exactly the true formula.
-    pub fn is_true(&self) -> bool {
-        self.0.len() == 2
+    fn is_true(&self) -> bool {
+        self.nodes.len() == 2
     }
 
     /// True if a Bdd is exactly the false formula.
-    pub fn is_false(&self) -> bool {
-        self.0.len() == 1
+    fn is_false(&self) -> bool {
+        self.nodes.len() == 1
     }
 
     /// Get the pointer of the root node of the Bdd.
@@ -163,7 +179,7 @@ impl Bdd {
         } else if self.is_true() {
             BddPointer::new_one()
         } else {
-            BddPointer::new(self.0.len() - 1)
+            BddPointer::new(self.nodes.len() - 1)
         }
     }
 
@@ -172,38 +188,38 @@ impl Bdd {
     }
 
     pub fn low_node_ptr(&self, ptr: BddPointer) -> BddPointer {
-        self.0[ptr.to_index()].low
+        self.nodes[ptr.to_index()].low
     }
 
-    pub fn replace_low(&mut self, ptr: BddPointer, new_ptr: BddPointer) {
-        self.0[ptr.to_index()].low = new_ptr
+    fn replace_low(&mut self, ptr: BddPointer, new_ptr: BddPointer) {
+        self.nodes[ptr.to_index()].low = new_ptr
     }
 
     pub fn high_node_ptr(&self, ptr: BddPointer) -> BddPointer {
-        self.0[ptr.to_index()].high
+        self.nodes[ptr.to_index()].high
     }
 
-    pub fn replace_high(&mut self, ptr: BddPointer, new_ptr: BddPointer) {
-        self.0[ptr.to_index()].high = new_ptr
+    fn replace_high(&mut self, ptr: BddPointer, new_ptr: BddPointer) {
+        self.nodes[ptr.to_index()].high = new_ptr
     }
 
-    pub fn delete_node(&mut self, to_delete: BddPointer, node_path: Vec<(BddPointer, bool)>) {
-        self.0.remove(to_delete.to_index());
+    fn delete_node(&mut self, to_delete: BddPointer, node_path: Vec<(BddPointer, bool)>) {
+        self.nodes.remove(to_delete.to_index());
         // the path until the node to delete was reached
         for (node, assign) in node_path.into_iter().skip(1) {
             // skip the first one as it was already assigned
             if assign {
                 // if true then decrement the high nodes
-                self.replace_high(node, BddPointer(self.high_node_ptr(node).0 - 1));
+                self.replace_high(node, BddPointer{ index: (self.high_node_ptr(node).index - 1)});
             } else {
                 // if false then decrement the low nodes
-                self.replace_low(node, BddPointer(self.low_node_ptr(node).0 - 1));
+                self.replace_low(node, BddPointer{ index: (self.low_node_ptr(node).index - 1)});
             }
         }
     }
 
-    pub fn replace_node(&mut self, to_delete: BddPointer, replacement: BddPointer) {
-        self.0.remove(to_delete.to_index());
+    fn replace_node(&mut self, to_delete: BddPointer, replacement: BddPointer) {
+        self.nodes.remove(to_delete.to_index());
         for ptr in self.indices() {
             if self.low_node_ptr(ptr).eq(&to_delete) {
                 self.replace_low(ptr, replacement);
@@ -418,28 +434,11 @@ impl Bdd {
         bdd
     }
 
-    pub fn build(
-        expressions: Vec<Expr>,
-        variables: &Vec<BddVar>,
-        ordering: &std::collections::HashMap<i32, usize>,
-        //_clause_database: &mut ClauseDatabase,
-        mut rec_depth: usize,
-        //_solver_wrapper: GlucoseWrapper
-    ) -> Self {
-        // here we are investigating 2 new clauses
-        rec_depth += 2;
+    pub fn build(expressions: Vec<Clause>, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Self {
         let mut current_bdd = expressions[0].to_bdd(&variables, &ordering);
 
         let mut n = 1;
         while n < expressions.len() {
-            // clear the global filter every 30 clauses
-            if rec_depth % 30 == 0 {
-                //clause_database.reset_bloom_filter_global();
-            }
-            // clear the local filter from former clauses
-            //clause_database.reset_bloom_filter_local();
-
-            // send the current learned clauses while building the temp_bdd
             let (_, temp_bdd) = rayon::join(
                 || {
                     //current_bdd.send_learned_clauses(true,clause_database,solver_wrapper)
@@ -448,8 +447,6 @@ impl Bdd {
             );
 
             current_bdd = current_bdd.and(&temp_bdd, &ordering);
-
-            rec_depth += 2;
             n += 1;
         }
         current_bdd
@@ -457,7 +454,7 @@ impl Bdd {
 
     /// Check if the Bdd is satisfiable and if its the case return
     /// the satisfiable assignment in a vector of bool.
-    pub fn solve(&self, variables: &Vec<BddVar>) -> Result<HashMap<i32, bool>, &str> {
+    fn solve(&self, variables: &Vec<BddVar>) -> Result<HashMap<i32, bool>, &str> {
         // If the Bdd is false return None.
         if self.is_false() {
             return Err("The problem is not solvable!");
@@ -489,6 +486,108 @@ impl Bdd {
 
         Ok(assignment)
     }
+
+    fn count_edges(&self, pointer: BddPointer, visited: &mut HashSet<usize>) -> usize {
+        if visited.contains(&pointer.to_index()) {
+            return 0; // Already visited, return zero edges
+        }
+        visited.insert(pointer.to_index());
+
+        let node = &self.nodes[pointer.to_index()];
+        let mut edges = 0;
+
+        // Count outgoing edges to high and low nodes
+        edges += self.count_edges(node.low, visited);
+        edges += self.count_edges(node.high, visited);
+
+        edges + 1 // Add one for the current edge
+    }
+
+    // Calculate the score for the current variable order using the NEC heuristic
+    fn calculate_nec_score(&self, ordering: &HashMap<i32, usize>) -> f64 {
+        let mut nec_score = 0.0;
+        let mut visited = HashSet::new();
+
+        for (index, node) in self.nodes.iter().enumerate() {
+            let edges = self.count_edges(BddPointer::new(index), &mut visited);
+            let var = node.var;
+
+            if let Some(&order) = ordering.get(&var.name) {
+                nec_score += (order as f64) * (edges as f64);
+            }
+        }
+
+        nec_score
+    }
+
+    /// Reorder the BDD nodes based on the given BddVarOrdering
+
+    /// Reordering variables in a Binary Decision Diagram (BDD) doesn't inherently make the BDD smaller in terms of the number of nodes or its overall size. 
+    /// Instead, the primary goal of variable reordering is to potentially improve the performance and efficiency of BDD operations, 
+    /// such as BDD minimization, traversal, and manipulation.
+    fn reorder_variables(&mut self, ordering: &HashMap<i32, usize>) {
+        let mut nodes_map: HashMap<BddPointer, BddPointer> = HashMap::new();
+        let mut sorted_nodes: Vec<_> = self.nodes.iter().enumerate().skip(2).collect();
+        
+        // Sort nodes based on the new variable order
+        sorted_nodes.sort_by(|(_, node1), (_, node2)| {
+            let var1_index = ordering.get(&node1.var.name).unwrap();
+            let var2_index = ordering.get(&node2.var.name).unwrap();
+            var2_index.cmp(var1_index)
+        });
+        
+        // Update the BDD nodes' pointers based on the new mapping
+        let mut new_nodes = Vec::with_capacity(self.nodes.len());
+        new_nodes.push(BddNode::mk_zero(BddVar { name: i32::MAX, score: 0.0 }));
+        new_nodes.push(BddNode::mk_one(BddVar { name: i32::MAX, score: 0.0 }));
+
+        for (new_index, (old_index, &node)) in sorted_nodes.iter().enumerate() {
+            println!("{:?}", node);
+            let old_pointer = BddPointer::new(*old_index);
+            let new_pointer = BddPointer::new(new_index + 2); // because we skipped the terminals
+            
+            let new_low = self.low_node_ptr(new_pointer);
+            let new_high = self.high_node_ptr(new_pointer);
+            let new_node = BddNode::mk_node(node.var, new_low, new_high);
+            
+            new_nodes.push(new_node);
+            nodes_map.insert(old_pointer, new_pointer);
+        }       
+       // Update the BDD nodes with the new ordering
+       self.nodes = new_nodes;
+    }
+
+    // Perform sifting variable reordering using the NEC scoring metric
+    fn sift_variables_nec(&mut self, ordering: &mut HashMap<i32, usize>) {
+        // Calculate NEC current score
+        let mut current_score = self.calculate_nec_score(ordering);
+
+        // Create a Vec of keys for iteration
+        let keys: Vec<i32> = ordering.keys().cloned().collect();
+
+        for (i, &var_i) in keys.iter().enumerate() {
+            for (j, &var_j) in keys.iter().enumerate().skip(i + 1) {
+                // Clone the ordering to make modifications
+                let mut new_ordering = ordering.clone();
+                
+                // Swap variable positions
+                new_ordering.insert(var_i, j);
+                new_ordering.insert(var_j, i);
+
+                // Calculate the score for the current variable order using the NEC heuristic
+                let score = self.calculate_nec_score(&new_ordering);
+
+                if score < current_score {
+                    current_score = score;
+                    // Update the original ordering with the modified new_ordering
+                    ordering.insert(var_i, j);
+                    ordering.insert(var_j, i);
+                    self.reorder_variables(ordering); // Reorder the BDD nodes
+                }
+            }
+        }
+    }
+    
 
     /*
     /// Randomly choose clauses from the set of clauses and check if the found assignment satisfies them.
@@ -539,318 +638,130 @@ impl Bdd {
         }
     }
     */
-
-    /*
-    fn find_resolvents(&self, resolvents: &Vec<BddVar>) -> Vec<BddPointer> {
-        let mut pointers: Vec<BddPointer> = Vec::new();
-        for ptr in self.indices() {
-            if resolvents.contains(&self.var_of_ptr(ptr)) {
-                pointers.push(ptr);
-            }
-        }
-        pointers
-    }
-
-    /// The following methods remove all nodes with a resolvent
-    /// variable and replace all pointers linked to it with 1
-    fn remove_resolvents(&mut self, resolvents_idx: Vec<BddPointer>) {
-        println!("remove_resolvents {:?}", self);
-        let mut to_remove = Vec::new();
-        for ptr in resolvents_idx {
-            self.prune_resolvents(ptr, &mut to_remove);
-            to_remove.push(ptr.to_index());
-        }
-        to_remove.sort();
-        self.remove_nodes(to_remove);
-    }
-
-    // TODO
-    fn prune_resolvents(&mut self, ptr: BddPointer, to_remove: &mut Vec<usize>) {
-        // find the parent nodes and update them
-        let mut parents = Vec::new();
-        // also the children nodes of the resolvents need to be
-        // deleted if they are not children of other nodes
-        let children = Vec::new();
-        let child_low = self.low_node_ptr(ptr);
-        let child_high = self.high_node_ptr(ptr);
-        let mut includes_child_low = false;
-        let mut includes_child_high = false;
-
-        for (idx, node) in self.0.iter_mut().enumerate() {
-            if node.low == ptr {
-                if node.high.is_one() {
-                    parents.push(idx);
-                    to_remove.push(idx);
-                }
-                node.replace_low(BddPointer::new_one());
-            }
-            if node.high == ptr {
-                if node.low.is_one() {
-                    parents.push(idx);
-                    to_remove.push(idx);
-                }
-                node.replace_high(BddPointer::new_one());
-            }
-            if idx != ptr.to_index() && (node.low == child_low || node.high == child_low) {
-                println!("child_low {:?}", child_low);
-                println!("includes_child_low {:?}", node.low);
-                includes_child_low = true;
-            }
-            if idx != ptr.to_index() && (node.low == child_high || node.high == child_high) {
-                println!("child_high {:?}", child_high);
-                println!("includes_child_high {:?}", node.high);
-                includes_child_high = true;
-            }
-        }
-        if !includes_child_low {
-            //children.push(child_low.to_index());
-            to_remove.push(child_low.to_index());
-        }
-        if !includes_child_high {
-            //children.push(child_high.to_index());
-            to_remove.push(child_high.to_index());
-        }
-        println!("parents {:?}", parents);
-        for par in parents {
-            self.prune_resolvents(BddPointer::new(par), to_remove);
-        }
-        println!("children {:?}", children);
-        // TODO somehow consider children
-        for chi in children {
-            self.prune_resolvents(BddPointer::new(chi), to_remove);
-        }
-    }
-
-    fn remove_nodes(&mut self, to_remove: Vec<usize>) {
-        println!("remove_nodes {:?}", self);
-        println!("to_remove {:?}", to_remove);
-        let mut index = 0;
-        let mut min_del = self.0.len();
-
-        for rem_idx in to_remove {
-            println!("rem_idx {:?}", rem_idx);
-            let del_idx = if rem_idx > index {
-                rem_idx - index
-            } else {
-                rem_idx
-            };
-            println!("del_idx {:?}", del_idx);
-            self.0.remove(del_idx);
-            if del_idx < min_del {
-                min_del = del_idx
-            };
-
-            // we reduce by 1 the nodes that their low or high index pointer
-            // is greater than the current deletion index
-            for ptr in self.indices() {
-                if !self.low_node_ptr(ptr).is_terminal()
-                    && self.low_node_ptr(ptr).to_index() > del_idx - 1
-                {
-                    self.replace_low(ptr, BddPointer::new(self.low_node_ptr(ptr).to_index() - 1));
-                }
-                if !self.high_node_ptr(ptr).is_terminal()
-                    && self.high_node_ptr(ptr).to_index() > del_idx - 1
-                {
-                    self.replace_high(ptr, BddPointer::new(self.high_node_ptr(ptr).to_index() - 1));
-                }
-            }
-            println!("self {:?}", self);
-            index += 1;
-        }
-    }
-
-    /// This method merges two Bdds based on resolution.
-    /// It is a variation of the Bdd apply method.
-    fn apply_resolution(
-        &mut self,
-        other: &Bdd,
-        ordering: &std::collections::HashMap<i32, usize>,
-    ) -> Bdd {
-        let mut bdd = Bdd::new();
-
-        // We keep track of a nodes_map so that there are no duplicates
-        let mut nodes_map: std::collections::HashMap<BddNode, BddPointer> =
-            std::collections::HashMap::with_capacity(std::cmp::max(self.size(), other.size()));
-        nodes_map.insert(
-            BddNode::mk_zero(BddVar::new(i32::MAX, 0.0)),
-            BddPointer::new_zero(),
-        );
-        nodes_map.insert(
-            BddNode::mk_one(BddVar::new(i32::MAX, 0.0)),
-            BddPointer::new_one(),
-        );
-
-        // Task is a pair of pointers into the `left` and `right` BDDs.
-        #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
-        struct Task {
-            left: BddPointer,
-            right: BddPointer,
-            op: fn(Option<bool>, Option<bool>) -> Option<bool>,
-        }
-
-        // There can be multiple resolvent variables
-        let mut resolvents = Vec::new();
-
-        // We keep track of the tasks currently on stack so that we build the bdd from down to the top
-        let mut stack: Vec<Task> = Vec::with_capacity(std::cmp::max(self.size(), other.size()));
-
-        stack.push(Task {
-            left: self.root_pointer(),
-            right: other.root_pointer(),
-            op: bool_expr::and,
-        });
-
-        fn find_key_for_value(
-            map: &std::collections::HashMap<BddNode, BddPointer>,
-            value: BddPointer,
-        ) -> Option<BddNode> {
-            map.iter()
-                .find_map(|(&key, &val)| if val == value { Some(key) } else { None })
-        }
-
-        // We keep track of the tasks already completed, so that we can access the pointers
-        let mut finished_tasks: std::collections::HashMap<Task, BddPointer> =
-            std::collections::HashMap::with_capacity(std::cmp::max(self.size(), other.size()));
-
-        while let Some(current) = stack.last() {
-            // We keep track if we are in active resolution procedure or not
-            let mut resolution = false;
-
-            if finished_tasks.contains_key(current) {
-                stack.pop();
-            } else {
-                let (lft, rgt) = (current.left, current.right);
-                // Find the lowest variable of the two nodes
-                let (l_var, r_var) = (self.var_of_ptr(lft), other.var_of_ptr(rgt));
-
-                // The min variable is now the one with the higher score, so
-                // the smallest index in the mapping
-                let l_var_index = ordering.get(&l_var.name).unwrap();
-                let r_var_index = ordering.get(&r_var.name).unwrap();
-                let min_var = if l_var_index < r_var_index {
-                    l_var
-                } else {
-                    r_var
-                };
-
-                // If the nodes have the same index the two low branches are paired
-                // and apply recursively computed on them. Similarly for the high branches.
-                // If they have different indices we proceed by pairing the node
-                // with lowest index with the low- and high- branches of the other.
-                let (l_low, l_high) = if l_var.eq(&min_var) {
-                    (self.low_node_ptr(lft), self.high_node_ptr(lft))
-                } else {
-                    (lft, lft)
-                };
-                let (r_low, r_high) = if l_var == r_var || r_var.eq(&min_var) {
-                    (other.low_node_ptr(rgt), other.high_node_ptr(rgt))
-                } else {
-                    (rgt, rgt)
-                };
-
-                // Two tasks which correspond to the two recursive sub-problems we need to solve.
-                let (sub_left, sub_right) =
-                // If we spot opposite polarities we are in the resolution process.
-                if l_var.eq(&r_var) && (l_low.eq(&r_high) || l_high.eq(&r_low)) {
-                    resolution = true;
-                    if !resolvents.contains(&min_var) {resolvents.push(min_var)};
-                    (Task {
-                        left: l_low,
-                        right: r_high,
-                        op: bool_expr::or
-                    },
-                    Task{
-                        left: l_high,
-                        right: r_low,
-                        op: bool_expr::or
-                    })
-                } else {
-                    (Task {
-                        left: l_low,
-                        right: r_low,
-                        op: current.op
-                    },
-                    Task{
-                        left: l_high,
-                        right: r_high,
-                        op: current.op
-                    })
-                };
-
-                // if in resolution these will be two seperate nodes inserted
-                // but because of recursion they should have been already in
-                // the nodes_map
-                let new_low: Option<BddPointer> =
-                    (sub_left.op)(sub_left.left.as_bool(), sub_left.right.as_bool())
-                        .map(BddPointer::from_bool)
-                        .or(finished_tasks.get(&sub_left).cloned());
-
-                let new_high: Option<BddPointer> =
-                    (sub_right.op)(sub_right.left.as_bool(), sub_right.right.as_bool())
-                        .map(BddPointer::from_bool)
-                        .or(finished_tasks.get(&sub_right).cloned());
-
-                if let (Some(new_low), Some(new_high)) = (new_low, new_high) {
-                    if new_low == new_high {
-                        finished_tasks.insert(*current, new_low);
-                    } else {
-                        let node = if resolution {
-                            let new: BddPointer =
-                                bool_expr::and(new_low.as_bool(), new_high.as_bool())
-                                    .map(BddPointer::from_bool)
-                                    .unwrap_or(if new_low.is_one() {
-                                        new_high
-                                    } else if new_high.is_one() {
-                                        new_low
-                                    } else {
-                                        *finished_tasks
-                                            .get(&Task {
-                                                left: new_low,
-                                                right: new_high,
-                                                op: bool_expr::and,
-                                            })
-                                            .unwrap()
-                                    });
-                            find_key_for_value(&nodes_map, new)
-                        } else {
-                            Some(BddNode::mk_node(min_var, new_low, new_high))
-                        };
-                        if let Some(node) = node {
-                            if let Some(idx) = nodes_map.get(&node) {
-                                // Node already exists, just make it a result of this computation.
-                                finished_tasks.insert(*current, *idx);
-                            } else {
-                                // Node does not exist, it needs to be pushed to result.
-                                bdd.push_node(node);
-                                nodes_map.insert(node, bdd.root_pointer());
-                                finished_tasks.insert(*current, bdd.root_pointer());
-                            }
-                        }
-                    }
-                    // If both values are computed, mark this task as resolved.
-                    stack.pop();
-                } else {
-                    // add the subtasks to stack
-                    if new_low.is_none() {
-                        stack.push(sub_left);
-                    }
-                    if new_high.is_none() {
-                        stack.push(sub_right);
-                    }
-                }
-            }
-        }
-        bdd.remove_resolvents(bdd.find_resolvents(&resolvents));
-        bdd
-    }
-    */
 }
 
 impl PartialEq for Bdd {
     fn eq(&self, other: &Self) -> bool {
         (self.size() == other.size())
-            && (self.0.iter().all(|x| other.0.contains(x)))
-            && (other.0.iter().all(|y| self.0.contains(y)))
+            && (self.nodes.iter().all(|x| other.nodes.contains(x)))
+            && (other.nodes.iter().all(|y| self.nodes.contains(y)))
+    }
+}
+
+fn var_asc_cmp(x: &usize, y: &usize) -> Ordering {
+    if x.eq(&y) {
+        Equal
+    } else if x < y {
+        Less
+    } else {
+        Greater
+    }
+}
+
+fn get_key_for_value<'a, K, V>(map: &'a HashMap<K, V>, target_value: &'a V) -> Option<&'a K>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+    V: std::cmp::Eq,
+{
+    for (key, value) in map.iter() {
+        if value == target_value {
+            return Some(key);
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_sample_bdd() -> Bdd {
+        let mut bdd = Bdd::new();
+    
+        let x1 = BddVar::new(1, 0.0);
+        let x2 = BddVar::new(2, 0.0);
+        let x3 = BddVar::new(3, 0.0);
+    
+        let node3: BddNode = BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
+        let node2: BddNode = BddNode::mk_node(x2.clone(),  BddPointer::new(2), BddPointer::new_one());
+        let node4: BddNode = BddNode::mk_node(x1.clone(), BddPointer::new(3), BddPointer::new_one());
+    
+        bdd.nodes.push(node3);
+        bdd.nodes.push(node2);
+        bdd.nodes.push(node4);
+    
+        bdd
+    }
+
+    #[test]
+    fn test_var_of_ptr() {
+        let bdd = create_sample_bdd();
+        let ptr = BddPointer::new(3);
+        let var = bdd.var_of_ptr(ptr);
+        assert_eq!(var, BddVar::new(2, 0.0));
+    }
+
+    #[test]
+    fn test_reorder_variables() {
+        let mut bdd = create_sample_bdd();
+        let mut ordering = HashMap::with_capacity(4); // Set initial capacity to accommodate indices 0, 1, and 2
+        ordering.insert(2, 0);
+        ordering.insert(1, 1);
+        ordering.insert(3, 2);
+        ordering.insert(i32::MAX, 3);
+
+        bdd.reorder_variables(&mut ordering);
+
+        // Assert the correct reordering has occurred
+        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 1, 2]);
+    }
+
+    #[test]
+    fn test_sift_variables_nec() {
+        let mut bdd = create_sample_bdd();
+        let mut ordering = HashMap::new();
+        ordering.insert(2, 0);
+        ordering.insert(1, 1);
+        ordering.insert(3, 2);
+
+        bdd.sift_variables_nec(&mut ordering);
+
+        // Assert the correct reordering has occurred
+        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        assert_eq!(var_order, vec![i32::MAX, i32::MAX, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_reorder_variables2() {
+        let mut bdd = create_sample_bdd();
+        let mut ordering = HashMap::new();
+        ordering.insert(i32::MAX, 0);
+        ordering.insert(2, 1);
+        ordering.insert(1, 2);
+        ordering.insert(3, 3);
+
+       
+        println!("Original BDD: {:?}", bdd);
+
+        bdd.reorder_variables(&ordering);
+
+        println!("Variable Ordering: {:?}", ordering);
+        println!("Reordered BDD: {:?}", bdd);
+        // Assert the correct reordering has occurred
+        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 1, 2]);
+
+        assert_eq!(bdd.nodes[0].low.to_index(), 0);
+        assert_eq!(bdd.nodes[0].high.to_index(), 0);
+        assert_eq!(bdd.nodes[1].low.to_index(), 1);
+        assert_eq!(bdd.nodes[1].high.to_index(), 1);
+        assert_eq!(bdd.nodes[2].low.to_index(), 0);
+        assert_eq!(bdd.nodes[2].high.to_index(), 1);
+        assert_eq!(bdd.nodes[3].low.to_index(), 2);
+        assert_eq!(bdd.nodes[3].high.to_index(), 1);
+        assert_eq!(bdd.nodes[4].low.to_index(), 3);
+        assert_eq!(bdd.nodes[4].high.to_index(), 1);
     }
 }
 

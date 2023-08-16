@@ -266,34 +266,55 @@ impl Clause {
         })
     }
 
+    pub fn to_bdd(&self, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
+        let mut bdd = self.literals.iter().next().unwrap().to_bdd(&variables, &ordering);
+
+        if let Some(expr) = self.literals.iter().next() {
+            let temp_bdd = expr.to_bdd(&variables, &ordering);
+            bdd = bdd.or(&temp_bdd, &ordering); // OR operation because we are in a clause
+        }
+        bdd
+    }
+
     // Function to substitute the value of a variable based on a substitution map
     pub fn substitute_variable(&mut self, substitution: &std::collections::HashMap<i32, bool>) {
-        for mut literal in self.literals {
+        let mut new_literals = HashSet::new();
+        for literal in &self.literals {
             match literal {
                 Expr::Var(var) => {
-                    if let Some(&value) = substitution.get(&var) {
-                        literal = if value {
+                    if let Some(&value) = substitution.get(var) {
+                        new_literals.insert(if value {
                             Expr::Const(true)
                         } else {
                             Expr::Const(false)
-                        };
+                        });
+                    } else {
+                        new_literals.insert(literal.clone());
                     }
                 }
                 Expr::Not(inner) => {
-                    if let Expr::Var(var) = &*inner {
+                    if let Expr::Var(var) = &**inner {
                         if let Some(&value) = substitution.get(var) {
-                            literal = if value {
+                            new_literals.insert(if value {
                                 Expr::Const(false)
                             } else {
                                 Expr::Const(true)
-                            };
+                            });
+                        } else {
+                            new_literals.insert(literal.clone());
                         }
+                    } else {
+                        new_literals.insert(literal.clone());
                     }
                 }
-                _ => {}
+                _ => {
+                    new_literals.insert(literal.clone());
+                }
             }
         }
+        self.literals = new_literals;
     }
+
 
     /// If a clause consists of only one literal (positive or
     /// negative), this clause is called a unit clause. We fix the
