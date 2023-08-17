@@ -272,11 +272,7 @@ impl Clause {
         })
     }
 
-    pub fn to_bdd(
-        &self,
-        variables: &Vec<BddVar>,
-        ordering: &std::collections::HashMap<i32, usize>,
-    ) -> Bdd {
+    pub fn to_bdd(&self, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
         let mut bdd = self
             .literals
             .iter()
@@ -284,7 +280,7 @@ impl Clause {
             .unwrap()
             .to_bdd(&variables, &ordering);
 
-        if let Some(expr) = self.literals.iter().next() {
+        for expr in self.literals.iter().skip(1) {
             let temp_bdd = expr.to_bdd(&variables, &ordering);
             bdd = bdd.or(&temp_bdd, &ordering); // OR operation because we are in a clause
         }

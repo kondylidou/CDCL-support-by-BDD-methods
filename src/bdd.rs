@@ -1,5 +1,5 @@
-use crate::expr::bool_expr::{self, Clause};
 use crate::bdd_util::{BddNode, BddPointer, BddVar};
+use crate::expr::bool_expr::{self, Clause};
 use std::collections::{HashMap, HashSet};
 use std::iter::Map;
 use std::ops::Range;
@@ -18,14 +18,17 @@ pub struct Bdd {
 impl Bdd {
     /// Create a new empty Bdd. The terminal pointers are
     /// inserted into the vector of nodes.
-    fn new() -> Bdd {
+    pub fn new() -> Bdd {
         let mut nodes = Vec::new();
         // Maximum number as pointer as in the apply method always the smaller var is
         // selected and we want to replace these nodes.
         let max_ptr = BddVar::new(i32::MAX, 0.0);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
-        Bdd { nodes, cache: HashMap::new() }
+        Bdd {
+            nodes,
+            cache: HashMap::new(),
+        }
     }
 
     fn new_with_capacity(cap: usize) -> Bdd {
@@ -35,7 +38,10 @@ impl Bdd {
         let max_ptr = BddVar::new(i32::MAX, 0.0);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
-        Bdd { nodes, cache: HashMap::new() }
+        Bdd {
+            nodes,
+            cache: HashMap::new(),
+        }
     }
 
     fn is_full(&self) -> bool {
@@ -60,7 +66,6 @@ impl Bdd {
         }
         None
     }
-    
 
     /// Insert a node into the vector of nodes of the Bdd.
     fn push_node(&mut self, node: BddNode) {
@@ -149,7 +154,10 @@ impl Bdd {
                 node.high.flip_if_terminal();
                 node.low.flip_if_terminal();
             }
-            Bdd { nodes, cache: HashMap::new() }
+            Bdd {
+                nodes,
+                cache: HashMap::new(),
+            }
         }
     }
 
@@ -206,10 +214,20 @@ impl Bdd {
             // skip the first one as it was already assigned
             if assign {
                 // if true then decrement the high nodes
-                self.replace_high(node, BddPointer{ index: (self.high_node_ptr(node).index - 1)});
+                self.replace_high(
+                    node,
+                    BddPointer {
+                        index: (self.high_node_ptr(node).index - 1),
+                    },
+                );
             } else {
                 // if false then decrement the low nodes
-                self.replace_low(node, BddPointer{ index: (self.low_node_ptr(node).index - 1)});
+                self.replace_low(
+                    node,
+                    BddPointer {
+                        index: (self.low_node_ptr(node).index - 1),
+                    },
+                );
             }
         }
     }
@@ -225,8 +243,7 @@ impl Bdd {
         }
     }
 
-
-    /* TODO to fix 
+    /* TODO to fix
     /// Convert this `Bdd` to a `BooleanExpression`.
     pub fn to_clause_vector(&self) -> Vec<Clause> {
         if self.is_false() {
@@ -237,7 +254,7 @@ impl Bdd {
         }
 
         let mut res: Vec<Clause> = Vec::with_capacity(self.nodes.len());
-        for node in 2..self.nodes.len() { // skip terminals 
+        for node in 2..self.nodes.len() { // skip terminals
             // skip terminals
             let bdd_var = self.nodes[node].var;
             let var_name = bdd_var.name;
@@ -303,7 +320,12 @@ impl Bdd {
     */
 
     /// This method merges two Bdds
-    fn apply<T>(&mut self, other: &Bdd, op: T, ordering: &std::collections::HashMap<i32, usize>) -> Bdd
+    fn apply<T>(
+        &mut self,
+        other: &Bdd,
+        op: T,
+        ordering: &std::collections::HashMap<i32, usize>,
+    ) -> Bdd
     where
         T: Fn(Option<bool>, Option<bool>) -> Option<bool>,
     {
@@ -356,7 +378,7 @@ impl Bdd {
                 if let Some(result) = cached_result {
                     finished_tasks.insert(*current, result);
                     stack.pop();
-                } else { 
+                } else {
                     let (lft, rgt) = (current.left, current.right);
                     // find the lowest variable of the two nodes
                     let (l_var, r_var) = (self.var_of_ptr(lft), other.var_of_ptr(rgt));
@@ -404,7 +426,6 @@ impl Bdd {
                         .map(BddPointer::from_bool)
                         .or(finished_tasks.get(&sub_right).cloned());
 
-                
                     if let (Some(new_low), Some(new_high)) = (new_low, new_high) {
                         if new_low == new_high {
                             finished_tasks.insert(*current, new_low);
@@ -421,7 +442,8 @@ impl Bdd {
                             }
                         }
                         // Cache the result
-                        self.cache.insert((current.left, current.right), bdd.root_pointer());
+                        self.cache
+                            .insert((current.left, current.right), bdd.root_pointer());
                         finished_tasks.insert(*current, bdd.root_pointer());
 
                         // If both values are computed, mark this task as resolved.
@@ -445,7 +467,11 @@ impl Bdd {
         self.cache.clear();
     }
 
-    pub fn build(expressions: Vec<Clause>, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Self {
+    pub fn build(
+        expressions: Vec<Clause>,
+        variables: &Vec<BddVar>,
+        ordering: &std::collections::HashMap<i32, usize>,
+    ) -> Self {
         let mut current_bdd = expressions[0].to_bdd(&variables, &ordering);
 
         let mut n = 1;
@@ -533,39 +559,45 @@ impl Bdd {
 
     /// Reorder the BDD nodes based on the given BddVarOrdering
 
-    /// Reordering variables in a Binary Decision Diagram (BDD) doesn't inherently make the BDD smaller in terms of the number of nodes or its overall size. 
-    /// Instead, the primary goal of variable reordering is to potentially improve the performance and efficiency of BDD operations, 
+    /// Reordering variables in a Binary Decision Diagram (BDD) doesn't inherently make the BDD smaller in terms of the number of nodes or its overall size.
+    /// Instead, the primary goal of variable reordering is to potentially improve the performance and efficiency of BDD operations,
     /// such as BDD minimization, traversal, and manipulation.
     fn reorder_variables(&mut self, ordering: &HashMap<i32, usize>) {
         self.clear_cache();
         let mut nodes_map: HashMap<BddPointer, BddPointer> = HashMap::new();
         let mut sorted_nodes: Vec<_> = self.nodes.iter().enumerate().skip(2).collect();
-        
+
         // Sort nodes based on the new variable order
         sorted_nodes.sort_by(|(_, node1), (_, node2)| {
             let var1_index = ordering.get(&node1.var.name).unwrap();
             let var2_index = ordering.get(&node2.var.name).unwrap();
             var2_index.cmp(var1_index)
         });
-        
+
         // Update the BDD nodes' pointers based on the new mapping
         let mut new_nodes = Vec::with_capacity(self.nodes.len());
-        new_nodes.push(BddNode::mk_zero(BddVar { name: i32::MAX, score: 0.0 }));
-        new_nodes.push(BddNode::mk_one(BddVar { name: i32::MAX, score: 0.0 }));
+        new_nodes.push(BddNode::mk_zero(BddVar {
+            name: i32::MAX,
+            score: 0.0,
+        }));
+        new_nodes.push(BddNode::mk_one(BddVar {
+            name: i32::MAX,
+            score: 0.0,
+        }));
 
         for (new_index, (old_index, &node)) in sorted_nodes.iter().enumerate() {
             let old_pointer = BddPointer::new(*old_index);
             let new_pointer = BddPointer::new(new_index + 2); // because we skipped the terminals
-            
+
             let new_low = self.low_node_ptr(new_pointer);
             let new_high = self.high_node_ptr(new_pointer);
             let new_node = BddNode::mk_node(node.var, new_low, new_high);
-            
+
             new_nodes.push(new_node);
             nodes_map.insert(old_pointer, new_pointer);
-        }       
-       // Update the BDD nodes with the new ordering
-       self.nodes = new_nodes;
+        }
+        // Update the BDD nodes with the new ordering
+        self.nodes = new_nodes;
     }
 
     // Perform sifting variable reordering using the NEC scoring metric
@@ -574,17 +606,21 @@ impl Bdd {
         let mut current_score = self.calculate_nec_score(ordering);
 
         // Create a Vec of keys for iteration
-        let keys: Vec<i32> = ordering.keys().filter(|&var| !var.eq(&i32::MAX)).cloned().collect();
+        let keys: Vec<i32> = ordering
+            .keys()
+            .filter(|&var| !var.eq(&i32::MAX))
+            .cloned()
+            .collect();
 
         for (i, &var_i) in keys.iter().enumerate() {
             for (_, &var_j) in keys.iter().enumerate().skip(i + 1) {
                 // Clone the ordering to make modifications
                 let mut new_ordering = ordering.clone();
-                
+
                 // Swap variable positions
-                new_ordering.insert(var_i,  *ordering.get(&var_j).unwrap());
-                new_ordering.insert(var_j,  *ordering.get(&var_i).unwrap());
-               
+                new_ordering.insert(var_i, *ordering.get(&var_j).unwrap());
+                new_ordering.insert(var_j, *ordering.get(&var_i).unwrap());
+
                 // Calculate the score for the current variable order using the NEC heuristic
                 let score = self.calculate_nec_score(&new_ordering);
 
@@ -598,7 +634,6 @@ impl Bdd {
             }
         }
     }
-    
 
     /*
     /// Randomly choose clauses from the set of clauses and check if the found assignment satisfies them.
@@ -665,37 +700,42 @@ mod tests {
 
     fn create_sample_bdd() -> Bdd {
         let mut bdd = Bdd::new();
-    
+
         let x1 = BddVar::new(1, 0.0);
         let x2 = BddVar::new(2, 0.0);
         let x3 = BddVar::new(3, 0.0);
-    
-        let node3: BddNode = BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
-        let node2: BddNode = BddNode::mk_node(x2.clone(),  BddPointer::new(2), BddPointer::new_one());
-        let node4: BddNode = BddNode::mk_node(x1.clone(), BddPointer::new(3), BddPointer::new_one());
-    
+
+        let node3: BddNode =
+            BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
+        let node2: BddNode =
+            BddNode::mk_node(x2.clone(), BddPointer::new(2), BddPointer::new_one());
+        let node4: BddNode =
+            BddNode::mk_node(x1.clone(), BddPointer::new(3), BddPointer::new_one());
+
         bdd.nodes.push(node3);
         bdd.nodes.push(node2);
         bdd.nodes.push(node4);
-    
+
         bdd
     }
 
     fn create_sample_bdd_complicated() -> Bdd {
         let mut bdd = Bdd::new();
-    
+
         let x1 = BddVar::new(1, 0.0);
         let x2 = BddVar::new(2, 0.0);
         let x3 = BddVar::new(3, 0.0);
-    
-        let node3: BddNode = BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
-        let node2: BddNode = BddNode::mk_node(x2.clone(),  BddPointer::new(2), BddPointer::new_zero());
+
+        let node3: BddNode =
+            BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
+        let node2: BddNode =
+            BddNode::mk_node(x2.clone(), BddPointer::new(2), BddPointer::new_zero());
         let node4: BddNode = BddNode::mk_node(x1.clone(), BddPointer::new(3), BddPointer::new(2));
-    
+
         bdd.nodes.push(node3);
         bdd.nodes.push(node2);
         bdd.nodes.push(node4);
-    
+
         bdd
     }
 
@@ -719,7 +759,11 @@ mod tests {
         bdd.reorder_variables(&mut ordering);
 
         // Assert the correct reordering has occurred
-        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        let var_order = bdd
+            .nodes
+            .iter()
+            .map(|node| node.var.name)
+            .collect::<Vec<i32>>();
         assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 1, 2]);
     }
 
@@ -735,7 +779,11 @@ mod tests {
         bdd.reorder_variables(&mut ordering);
 
         // Assert the correct reordering has occurred
-        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        let var_order = bdd
+            .nodes
+            .iter()
+            .map(|node| node.var.name)
+            .collect::<Vec<i32>>();
         assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 1, 2]);
     }
 
@@ -751,7 +799,11 @@ mod tests {
         bdd.sift_variables_nec(&mut ordering);
 
         // Assert the correct reordering has occurred
-        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        let var_order = bdd
+            .nodes
+            .iter()
+            .map(|node| node.var.name)
+            .collect::<Vec<i32>>();
         assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 2, 1]);
     }
 
@@ -767,7 +819,11 @@ mod tests {
         bdd.sift_variables_nec(&mut ordering);
 
         // Assert the correct reordering has occurred
-        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        let var_order = bdd
+            .nodes
+            .iter()
+            .map(|node| node.var.name)
+            .collect::<Vec<i32>>();
         assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 2, 1]);
     }
 
@@ -780,7 +836,6 @@ mod tests {
         ordering.insert(1, 2);
         ordering.insert(3, 3);
 
-       
         println!("Original BDD: {:?}", bdd);
 
         bdd.reorder_variables(&ordering);
@@ -788,7 +843,11 @@ mod tests {
         println!("Variable Ordering: {:?}", ordering);
         println!("Reordered BDD: {:?}", bdd);
         // Assert the correct reordering has occurred
-        let var_order = bdd.nodes.iter().map(|node| node.var.name).collect::<Vec<i32>>();
+        let var_order = bdd
+            .nodes
+            .iter()
+            .map(|node| node.var.name)
+            .collect::<Vec<i32>>();
         assert_eq!(var_order, vec![i32::MAX, i32::MAX, 3, 1, 2]);
 
         assert_eq!(bdd.nodes[0].low.to_index(), 0);
@@ -820,5 +879,4 @@ mod tests {
 
         assert_eq!(dimacs.expressions, res);
     }*/
-
 }

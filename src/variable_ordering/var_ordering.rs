@@ -20,7 +20,7 @@ use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
     Dynamic Reordering: Apply dynamic variable reordering periodically during BDD construction.
     After performing bucket elimination on each bucket, reevaluate the variable ordering to find an optimal arrangement that reduces the overall BDD size.
 
-    Caching: Implement memoization to cache intermediate BDD results. 
+    Caching: Implement memoization to cache intermediate BDD results.
     This avoids redundant computations during BDD construction and can significantly speed up the process.
 
     Garbage Collection: Periodically remove unused nodes and apply garbage collection to the BDD to keep it compact and efficient.
@@ -50,7 +50,6 @@ impl BddVarOrdering {
 
     pub fn build_bdd(&self) -> Bdd {
         let mut current_bdd = self.expressions[0].to_bdd(&self.variables, &self.ordering);
-
         let mut n = 1;
         while n < self.expressions.len() {
             let (_, temp_bdd) = rayon::join(
@@ -59,7 +58,6 @@ impl BddVarOrdering {
                 },
                 || self.expressions[n].to_bdd(&self.variables, &self.ordering),
             );
-
             current_bdd = current_bdd.and(&temp_bdd, &self.ordering);
             n += 1;
         }
@@ -160,7 +158,7 @@ mod tests {
 
     #[test]
     pub fn bucket_elimination_bench() {
-        let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/4dfe7816c2c198f8fd0b328d1e9672c9-crafted_n10_d6_c3_num18.cnf";
+        let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/tests/test1.cnf";
 
         let start = Instant::now();
         // create the Dimacs instance
@@ -177,6 +175,10 @@ mod tests {
             "Time elapsed to create the variable ordering : {:?}",
             start.elapsed()
         );
+        println!("_var_ordering {:?}", _var_ordering);
+
+        let bdd = _var_ordering.build_bdd();
+        println!("{:?}", bdd);
 
         //let start = Instant::now();
 

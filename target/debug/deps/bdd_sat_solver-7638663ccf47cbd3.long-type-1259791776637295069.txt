@@ -1,1 +1,0 @@
-&std::iter::FlatMap<std::slice::Iter<'_, bool_expr::Clause>, &HashSet<bool_expr::Expr>, [closure@src/variable_ordering/bucket.rs:37:48: 37:51]>
