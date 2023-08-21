@@ -1,6 +1,7 @@
 use crate::bdd_util::{BddNode, BddPointer, BddVar};
 use crate::expr::bool_expr::{self, Clause};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::iter::Map;
 use std::ops::Range;
 
@@ -487,6 +488,22 @@ impl Bdd {
             n += 1;
         }
         current_bdd
+    }
+
+    pub fn find_terminal_nodes_conflicts(&self) -> Vec<(bool, BddPointer)> {
+        let mut terminal_nodes: Vec<(bool, BddPointer)> = Vec::new();
+    
+        for ptr in self.indices() {
+            if ptr.is_terminal() { continue; }
+            if self.low_node_ptr(ptr) == BddPointer::new_zero() {
+                terminal_nodes.push((false, ptr));
+            }
+            if self.high_node_ptr(ptr) == BddPointer::new_zero() {
+                terminal_nodes.push((true, ptr));
+            }
+        }
+    
+        terminal_nodes
     }
 
     /// Check if the Bdd is satisfiable and if its the case return
