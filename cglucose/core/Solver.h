@@ -57,6 +57,11 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/BoundedQueue.h"
 #include "core/Constants.h"
 #include "mtl/Clone.h"
+#include <unordered_map>
+#include <iostream>
+#include <list>
+#include <tuple>
+#include <vector>
 
 
 namespace Glucose {
@@ -94,7 +99,6 @@ public:
     bool    addClause (Lit p, Lit q, Lit r);                    // Add a ternary clause to the solver. 
     virtual bool    addClause_(      vec<Lit>& ps);                     // Add a clause to the solver without making superflous internal copy. Will
                                                                 // change the passed vector 'ps'.
-
     // Solving:
     //
     bool    simplify     ();                        // Removes already satisfied clauses.
@@ -231,9 +235,51 @@ public:
     uint64_t    nbPromoted;          // Number of clauses from unary to binary watch scheme
     uint64_t    originalClausesSeen; // Number of original clauses seen
     uint64_t    sumDecisionLevels;
+
     //
     uint64_t nbRemovedClauses,nbRemovedUnaryWatchedClauses, nbReducedClauses,nbDL2,nbBin,nbUn,nbReduceDB,solves, starts, decisions, rnd_decisions, propagations, conflicts,conflictsRestarts,nbstopsrestarts,nbstopsrestartssame,lastblockatrestart;
     uint64_t dec_vars, clauses_literals, learnts_literals, max_literals, tot_literals;
+
+
+
+
+/*/
+**************************************************************
+*******************SO I CAN FIND IT EASIER*****************************
+**************************************************************
+**************************************************************
+*/
+
+    using VecTuple = std::vector<std::tuple<uint64_t, double>>;
+    using VecList = std::list<std::tuple<Solver::VecTuple, std::string>>;
+    using ListForInstances = std::list<std::tuple<VecList, std::string>>;
+
+    //For each instance, save the Vectors and the corresponding instanceName in here
+    ListForInstances instanceList;
+    
+    //Contains the data for the watched variables
+    VecList vecList;
+
+    //The Variables that are being tracked
+    VecTuple restarts;
+    VecTuple reducedDatabase;
+    VecTuple conf;
+    VecTuple propags;
+    VecTuple confLiterals;
+    VecTuple dec;
+    VecTuple blockedRestarts;
+
+    //Variable dummy test einfügen, Vector von Literalen 
+    
+/*
+**************************************************************
+**************************************************************
+**************************************************************
+**************************************************************
+*/
+
+
+
 
 protected:
 
@@ -272,7 +318,6 @@ protected:
 
 
     // Solver state:
-    //
     int                lastIndexRed;
     bool                ok;               // If FALSE, the constraints are already unsatisfiable. No part of the solver state may be used!
     double              cla_inc;          // Amount to bump next clause with.
@@ -386,6 +431,9 @@ protected:
     //lk
     bool     getClause(vec<Lit> importedClause);
 
+    //TimeControl
+    void timeController(int timeframe);
+
     // Operations on clauses:
     //
     void     attachClause     (CRef cr);               // Attach a clause to watcher lists.
@@ -433,7 +481,6 @@ protected:
 
 inline CRef Solver::reason(Var x) const { return vardata[x].reason; }
 inline int  Solver::level (Var x) const { return vardata[x].level; }
-
 inline void Solver::insertVarOrder(Var x) {
     if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x); }
 

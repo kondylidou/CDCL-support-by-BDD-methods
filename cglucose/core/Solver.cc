@@ -702,7 +702,6 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt,vec<Lit>&selectors, int& o
 
         for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++) {
             Lit q = c[j];
-
             if (!seen[var(q)]) {
                 if (level(var(q)) == 0) {
                 } else { // Here, the old case 
@@ -774,6 +773,9 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt,vec<Lit>&selectors, int& o
     max_literals += out_learnt.size();
     out_learnt.shrink(i - j);
     tot_literals += out_learnt.size();
+
+    //When a conflict literal is created, increase the number and save it in confLiterals
+    confLiterals.emplace_back(std::make_tuple(max_literals,cpuTime()));
 
 
     /* ***************************************
@@ -1048,6 +1050,9 @@ NextClause:
     propagations += num_props;
     simpDB_props -= num_props;
 
+    //When propagate is called, safe the time and the number of propagations in *propags*
+    propags.emplace_back(std::make_tuple(propagations,cpuTime()));
+
     return confl;
 }
 
@@ -1151,6 +1156,8 @@ void Solver::reduceDB()
  
   int     i, j;
   nbReduceDB++;
+  reducedDatabase.emplace_back(std::make_tuple(nbReduceDB, cpuTime()));
+
   sort(learnts, reduceDB_lt(ca));
 
   // We have a lot of "good" clauses, it is difficult to compare them. Keep more !
@@ -1267,17 +1274,19 @@ lbool Solver::search(int nof_conflicts) {
     unsigned int nblevels,szWithoutSelectors = 0;
     bool blocked = false;
     starts++;
+
+    //adding counter to the number of starts
+    restarts.emplace_back(std::make_tuple(starts,cpuTime()));
+ 
     for (;;) {
         if (decisionLevel() == 0) { // We import clauses FIXME: ensure that we will import clauses enventually (restart after some point)
             parallelImportUnaryClauses();
             
             if (parallelImportClauses())
                 return l_False;
-
         }
 
         CRef confl = propagate();
-
         if (confl != CRef_Undef) {
             if(parallelJobIsFinished())
                 return l_Undef;
@@ -1286,6 +1295,8 @@ lbool Solver::search(int nof_conflicts) {
             sumDecisionLevels += decisionLevel();
             // CONFLICT
             conflicts++;
+            conf.emplace_back(std::make_tuple(conflicts,cpuTime()));
+
             conflictC++;
             //if (conflictC < tmp_conflict) {
             //    add_conflicts.push(tmp_conflict);
@@ -1311,6 +1322,7 @@ lbool Solver::search(int nof_conflicts) {
             if (conflictsRestarts > LOWER_BOUND_FOR_BLOCKING_RESTART && lbdQueue.isvalid() && trail.size() > R * trailQueue.getavg()) {
                 lbdQueue.fastclear();
                 nbstopsrestarts++;
+                blockedRestarts.emplace_back(std::make_tuple(nbstopsrestarts,cpuTime()));
                 if (!blocked) {
                     lastblockatrestart = starts;
                     nbstopsrestartssame++;
@@ -1344,7 +1356,7 @@ lbool Solver::search(int nof_conflicts) {
                 CRef cr = ca.alloc(learnt_clause, true);
                 ca[cr].setLBD(nblevels);
                 ca[cr].setOneWatched(false);
-		ca[cr].setSizeWithoutSelectors(szWithoutSelectors);
+		        ca[cr].setSizeWithoutSelectors(szWithoutSelectors);
                 if (nblevels <= 2) nbDL2++; // stats
                 if (ca[cr].size() == 2) nbBin++; // stats
                 learnts.push(cr);
@@ -1354,12 +1366,10 @@ lbool Solver::search(int nof_conflicts) {
                 //parallelExportLearntClauseDuringSearch(learnt_clause);
                 claBumpActivity(ca[cr]);
                 uncheckedEnqueue(learnt_clause[0], cr);
-
             }
 
             varDecayActivity();
             claDecayActivity();
-
 
         } else {
             // Our dynamic restart, see the SAT09 competition compagnion paper 
@@ -1410,6 +1420,7 @@ lbool Solver::search(int nof_conflicts) {
             if (next == lit_Undef) {
                 // New variable decision:
                 decisions++;
+                dec.emplace_back(std::make_tuple(decisions,cpuTime()));
                 next = pickBranchLit();
                 if (next == lit_Undef) {
                     //printf("c last restart ## conflicts  :  %d %d \n", conflictC, decisionLevel());
@@ -1471,9 +1482,8 @@ lbool Solver::solve_(bool do_simp, bool turn_off_simp) // Parameters are useless
     conflict.clear();
     if (!ok) return l_False;
     double curTime = cpuTime();
-
     solves++;
-            
+    
 
     
     lbool   status        = l_Undef;
@@ -1719,4 +1729,3 @@ bool Solver::parallelJobIsFinished() {
 
 void Solver::parallelImportClauseDuringConflictAnalysis(Clause &c,CRef confl) {
 }
-

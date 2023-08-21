@@ -58,7 +58,16 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "utils/Options.h"
 #include "core/Dimacs.h"
 #include "simp/SimpSolver.h"
+#include <iostream>
+#include <fstream>
 
+
+#include "CallPythonFile.h"
+#include <Python.h>
+#include "Python.h"
+#include <chrono>
+
+using namespace std;
 using namespace Glucose;
 
 //=================================================================================================
@@ -88,8 +97,6 @@ void printStats(Solver& solver)
     printf("c CPU time              : %g s\n", cpu_time);
 }
 
-
-
 static Solver* solver;
 // Terminate by notifying the solver and back out gracefully. This is mainly to have a test-case
 // for this feature of the Solver as it may take longer than an immediate call to '_exit()'.
@@ -105,9 +112,35 @@ static void SIGINT_exit(int signum) {
         printf("\n"); printf("*** INTERRUPTED ***\n"); }
     _exit(1); }
 
+//Consists of the VecLists of the generated data that has been tracked and saves
+//it into a list for easier transition to the plotter
+static Solver::ListForInstances lists;
+
+//Tracks the number of the instanc and the time taken
+std::vector<std::tuple<int, double>> instances;
+
+
+//TODO: anzahl an klauseln am anfang und ende
+void saveToListAndCallPython(Solver& S, std::string instanceName){
+    
+    S.vecList.emplace_back(std::make_tuple(S.restarts, "_restarts"));
+    S.vecList.emplace_back(std::make_tuple(S.conf, "_conflicts"));
+    S.vecList.emplace_back(std::make_tuple(S.dec, "_decisions"));
+    S.vecList.emplace_back(std::make_tuple(S.confLiterals, "_conflicLiterals"));
+    S.vecList.emplace_back(std::make_tuple(S.blockedRestarts, "_blockedRestarts"));
+    S.vecList.emplace_back(std::make_tuple(S.reducedDatabase, "_reducedDatabase"));
+    S.vecList.emplace_back(std::make_tuple(S.propags, "_propagations"));
+    lists.emplace_back(std::make_tuple(S.vecList, instanceName));
+
+    S.vecList.clear();
+    }
+
+
+
 
 //=================================================================================================
 // Main:
+
 
 int main(int argc, char** argv)
 {
@@ -138,28 +171,8 @@ int main(int argc, char** argv)
          StringOption  opt_certified_file      (_certified, "certified-output",    "Certified UNSAT output file", "NULL");
          
         parseOptions(argc, argv, true);
-        
-        SimpSolver  S;
         double      initial_time = cpuTime();
 
-        S.parsing = 1;
-        //if (!pre) S.eliminate(true);
-
-        S.verbosity = verb;
-        S.verbEveryConflicts = vv;
-	S.showModel = mod;
-        
-        S.certifiedUNSAT = opt_certified;
-        if(S.certifiedUNSAT) {
-            if(!strcmp(opt_certified_file,"NULL")) {
-            S.certifiedOutput =  fopen("/dev/stdout", "wb");
-            } else {
-                S.certifiedOutput =  fopen(opt_certified_file, "wb");	    
-            }
-            fprintf(S.certifiedOutput,"o proof DRUP\n");
-        }
-
-        solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to
         // interrupts:
         signal(SIGINT, SIGINT_exit);
@@ -188,21 +201,52 @@ int main(int argc, char** argv)
             } }
         
         if (argc == 1)
-            printf("c Reading from standard input... Use '--help' for help.\n");
-
-        gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
-        if (in == NULL)
-            printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
-        
-      if (S.verbosity > 0){
-            printf("c ========================================[ Problem Statistics ]===========================================\n");
-            printf("c |                                                                                                       |\n"); }
+            printf("c Reading from standard input... Use '--help' for help.\n");     
         
         FILE* res = (argc >= 3) ? fopen(argv[argc-1], "wb") : NULL;
-        parse_DIMACS(in, S);
-        gzclose(in);
+ 
+        // Change to signal-handlers that will only notify the solver and allow it to terminate
+        // voluntarily:
+        signal(SIGINT, SIGINT_interrupt);
+        signal(SIGXCPU,SIGINT_interrupt);
 
-       if (S.verbosity > 0){
+/*
+Put the names of the cnf file in the filePaths array, can be done better of course, 
+but for testing purpose it is made that simple. Future improvement will be done.
+*/        
+
+        const char* filePaths[] = {
+            "sgen.cnf",      
+            "sgen.cnf"   
+           // "fuhs-aprove-16.cnf"
+        };
+
+        int size = sizeof(filePaths) / sizeof(filePaths[0]);
+        
+        if(argc == 2){
+            //Loop trough the files and create a new solver for each file
+            for (int i = 0; i < size; ++i) {
+            SimpSolver S = SimpSolver();
+            double initial_time = cpuTime();    
+
+            S.parsing = 1;
+            S.verbosity = verb;
+            S.verbEveryConflicts = vv;
+	        S.showModel = mod;
+            S.certifiedUNSAT = opt_certified;
+            if(S.certifiedUNSAT) {
+            if(!strcmp(opt_certified_file,"NULL")) {
+            S.certifiedOutput =  fopen("/dev/stdout", "wb");
+            } else {
+                S.certifiedOutput =  fopen(opt_certified_file, "wb");	    
+            }
+            fprintf(S.certifiedOutput,"o proof DRUP\n");
+        }
+
+        if (S.verbosity > 0){
+            printf("c ========================================[ Problem Statistics ]===========================================\n");
+            printf("c |                                                                                                           |\n"); }
+        if (S.verbosity > 0){
             printf("c |  Number of variables:  %12d                                                                   |\n", S.nVars());
             printf("c |  Number of clauses:    %12d                                                                   |\n", S.nClauses()); }
         
@@ -210,14 +254,9 @@ int main(int argc, char** argv)
         if (S.verbosity > 0){
             printf("c |  Parse time:           %12.2f s                                                                 |\n", parsed_time - initial_time);
             printf("c |                                                                                                       |\n"); }
+         S.parsing = 0;
 
-        // Change to signal-handlers that will only notify the solver and allow it to terminate
-        // voluntarily:
-        signal(SIGINT, SIGINT_interrupt);
-        signal(SIGXCPU,SIGINT_interrupt);
-
-        S.parsing = 0;
-        if(pre/* && !S.isIncremental()*/) {
+         if(pre/* && !S.isIncremental()*/) {
 	  printf("c | Preprocesing is fully done\n");
 	  S.eliminate(true);
         double simplified_time = cpuTime();
@@ -246,46 +285,26 @@ int main(int argc, char** argv)
                 printStats(S);
             exit(0);
         }
+            gzFile in = gzopen(filePaths[i],"rb"); 
+            parse_DIMACS(in, S);
+            gzclose(in);
 
-        vec<Lit> dummy;
-        lbool ret = S.solveLimited(dummy);
-        
-        if (S.verbosity > 0){
+            vec<Lit> dummy;
+            lbool ret = S.solveLimited(dummy);
+
+             if (S.verbosity > 0){
             printStats(S);
             printf("\n"); }
-        printf(ret == l_True ? "s SATISFIABLE\n" : ret == l_False ? "s UNSATISFIABLE\n" : "s INDETERMINATE\n");
+            printf(ret == l_True ? "s SATISFIABLE\n" : ret == l_False ? "s UNSATISFIABLE\n" : "s INDETERMINATE\n");
+            std::string instanceName = filePaths[i]; 
+            saveToListAndCallPython(S, instanceName);
+            instances.emplace_back(i+1,cpuTime());
+            }
+            vectorToPython(lists);
+            solvedInstances(instances);
+        }
 
-        if (res != NULL){
-            if (ret == l_True){
-                printf("SAT\n");
-                for (int i = 0; i < S.nVars(); i++)
-                    if (S.model[i] != l_Undef)
-                        fprintf(res, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
-                fprintf(res, " 0\n");
-            } else {
-	      if (ret == l_False){
-		fprintf(res, "UNSAT\n");
-	      }
-	    }
-            fclose(res);
-        } else {
-	  if(S.showModel && ret==l_True) {
-	    printf("v ");
-	    for (int i = 0; i < S.nVars(); i++)
-	      if (S.model[i] != l_Undef)
-		printf("%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
-	    printf(" 0\n");
-	  }
 
-	}
-
-        if (S.certifiedUNSAT) fprintf(S.certifiedOutput, "0\n"), fclose(S.certifiedOutput);
-
-#ifdef NDEBUG
-        exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
-#else
-        return (ret == l_True ? 10 : ret == l_False ? 20 : 0);
-#endif
     } catch (OutOfMemoryException&){
 	        printf("c =========================================================================================================\n");
         printf("INDETERMINATE\n");

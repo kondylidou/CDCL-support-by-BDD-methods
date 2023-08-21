@@ -19,13 +19,26 @@ RCOBJS     = $(addsuffix r,  $(COBJS))
 
 #CXX        ?= /usr/gcc-/bin/g++-4.7.0
 CXX       ?= g++
-CFLAGS    ?= -Wall -Wno-parentheses -std=c++11
-LFLAGS    ?= -Wall -lpthread 
+CFLAGS    ?= -Wall -Wno-parentheses -std=c++11 -I/usr/include/python3.9
+LFLAGS    ?= -Wall -lpthread -L/mnt/c/Python311/libs -lpython3.9
 
 COPTIMIZE ?= -O3
 
 CFLAGS    += -I$(MROOT) -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
 LFLAGS    += -lz
+
+PYTHON_CFLAGS := -I/usr/include/python3.9
+PYTHON_LDFLAGS := -L/mnt/c/Python311/libs -lpython3.9
+
+CFLAGS+=$(shell python-config --cflags) $(PYTHON_CFLAGS)
+LDFLAGS+=$(shell python-config --ldflags) $(PYTHON_LDFLAGS)
+
+
+
+##CFLAGS=-Wall -Wextra -I/usr/include/python3.9
+## LDFLAGS=-L/usr/lib/python3.9 -lpython3.9
+LDFLAGS=-L/mnt/c/Python311/libs -lpython3.9
+
 
 .PHONY : s p d r rs clean 
 
@@ -64,7 +77,6 @@ lib$(LIB)_standard.a:	$(filter-out */Main.o,  $(COBJS))
 lib$(LIB)_profile.a:	$(filter-out */Main.op, $(PCOBJS))
 lib$(LIB)_debug.a:	$(filter-out */Main.od, $(DCOBJS))
 lib$(LIB)_release.a:	$(filter-out */Main.or, $(RCOBJS))
-
 
 ## Build rule
 %.o %.op %.od %.or:	%.cc
@@ -105,3 +117,5 @@ depend.mk: $(CSRCS) $(CHDRS)
 
 -include $(MROOT)/mtl/config.mk
 -include depend.mk
+-include usr/bin/python3.9
+-include mnt/c/Python311/libs
