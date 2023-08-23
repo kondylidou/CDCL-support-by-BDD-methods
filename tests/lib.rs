@@ -23,7 +23,7 @@ pub fn test_solver_get_solution_2() {
     let solver = init_glucose_solver();
     let start = Instant::now();
     let nb_v = parse_dimacs_and_add_clause_to_glucose(
-        "/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/0b1041a1e55af6f3d2c63462a7400bd2-fermat-907547022132073.cnf".to_string(),
+        "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/aim-200-6_0-yes1-4.cnf.mis-135.debugged.cnf".to_string(),
         solver,
     );
     let ret = run_glucose(solver);

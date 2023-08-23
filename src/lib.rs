@@ -1,25 +1,24 @@
-pub mod variable_ordering {
+mod variable_ordering {
     pub mod bucket;
     pub mod var_ordering;
     pub mod var_ordering_builder;
 }
-pub mod approx;
-pub mod bdd;
-pub mod bdd_util;
-mod clause_gen;
+mod approx;
+mod bdd;
+mod bdd_util;
 
-pub mod statistics {
+mod statistics {
     pub mod stats;
 }
 
-pub mod expr {
+mod expr {
     pub mod bool_expr;
 }
-pub mod parallel {
-    pub mod clause_database;
-}
-pub mod sharing {
+
+mod sharing {
     pub mod sharing_manager;
+    mod clause_gen;
+    mod clause_database;
 }
 
 pub mod bindings {
@@ -35,10 +34,14 @@ use std::io::{BufRead, BufReader};
 use std::time::Instant;
 
 #[derive(Clone, Copy)]
-pub struct GlucoseWrapper(pub *mut CGlucose);
+pub struct GlucoseWrapper {
+    pub solver: *mut CGlucose
+}
 impl GlucoseWrapper {
     pub fn new(solver: *mut CGlucose) -> GlucoseWrapper {
-        GlucoseWrapper(solver)
+        GlucoseWrapper {
+            solver
+        }
     }
 }
 unsafe impl Send for GlucoseWrapper {}
@@ -150,7 +153,7 @@ pub fn run_glucose_parallel(
     let started = Instant::now();
     let start = ProcessTime::try_now().expect("Getting process time failed");
 
-    let s = solver_wrapper.0;
+    let s = solver_wrapper.solver;
 
     let ret = unsafe { cglucose_solve(s) };
 

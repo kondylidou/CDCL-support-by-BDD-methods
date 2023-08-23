@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use std::fmt;
+use anyhow::Result;
 
 use crate::{
     bdd::Bdd,
@@ -208,13 +210,14 @@ impl Expr {
     }*/
 }
 
-impl std::fmt::Display for Expr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Const(value) => write!(f, "{}", value),
-            Var(name) => write!(f, "{}", name),
-            Not(inner) => write!(f, "!{}", inner),
+            Expr::Const(value) => write!(f, "{}", value),
+            Expr::Var(name) => write!(f, "{}", name),
+            Expr::Not(inner) => write!(f, "!{}", inner),
         }
+        .map_err(|_| fmt::Error) // Convert anyhow::Error to fmt::Error
     }
 }
 
@@ -422,6 +425,8 @@ pub fn or(l: Option<bool>, r: Option<bool>) -> Option<bool> {
 mod tests {
     use std::collections::HashSet;
 
+    use crate::bdd_util::{BddNode, BddPointer};
+
     use super::*;
 
     #[test]
@@ -455,10 +460,9 @@ mod tests {
 
         let bdd = expr.to_bdd(&variables, &ordering);
 
-        // You can add more specific assertions about the BDD structure if needed
-        //assert_eq!(bdd.var, var2);
-        //assert_eq!(bdd.high, None);
-        //assert_eq!(bdd.low, None);
+        let mut res = Bdd::new();
+        res.nodes.push(BddNode::mk_node(BddVar { name: 2, score: 0.3 }, BddPointer::new_one(), BddPointer::new_zero()));
+        assert_eq!(bdd, res)
     }
 
     #[test]

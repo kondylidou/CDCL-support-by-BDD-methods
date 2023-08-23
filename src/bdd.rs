@@ -1,9 +1,10 @@
 use crate::bdd_util::{BddNode, BddPointer, BddVar};
-use crate::expr::bool_expr::{self, Clause};
+use crate::expr::bool_expr;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::iter::Map;
 use std::ops::Range;
+use anyhow::{Result, anyhow};
 
 // The Bdd receives the clauses 'Vec<Vec<i32>>'. They can be viewed as a boolean
 // expression for example (x1 OR x2) AND (NOT x1 OR x2). Then the INF (if then else normalform)
@@ -11,7 +12,7 @@ use std::ops::Range;
 
 #[derive(Clone, Debug)]
 pub struct Bdd {
-    nodes: Vec<BddNode>,
+    pub nodes: Vec<BddNode>,
     // cache for memoization
     cache: HashMap<(BddPointer, BddPointer), BddPointer>,
 }
@@ -468,28 +469,6 @@ impl Bdd {
         self.cache.clear();
     }
 
-    pub fn build(
-        expressions: Vec<Clause>,
-        variables: &Vec<BddVar>,
-        ordering: &std::collections::HashMap<i32, usize>,
-    ) -> Self {
-        let mut current_bdd = expressions[0].to_bdd(&variables, &ordering);
-
-        let mut n = 1;
-        while n < expressions.len() {
-            let (_, temp_bdd) = rayon::join(
-                || {
-                    //current_bdd.send_learned_clauses(true,clause_database,solver_wrapper)
-                },
-                || expressions[n].to_bdd(&variables, &ordering),
-            );
-
-            current_bdd = current_bdd.and(&temp_bdd, &ordering);
-            n += 1;
-        }
-        current_bdd
-    }
-
     pub fn find_terminal_nodes_conflicts(&self) -> Vec<(bool, BddPointer)> {
         let mut terminal_nodes: Vec<(bool, BddPointer)> = Vec::new();
     
@@ -508,10 +487,10 @@ impl Bdd {
 
     /// Check if the Bdd is satisfiable and if its the case return
     /// the satisfiable assignment in a vector of bool.
-    fn solve(&self, variables: &Vec<BddVar>) -> Result<HashMap<i32, bool>, &str> {
+    fn solve(&self, variables: &Vec<BddVar>) -> Result<HashMap<i32, bool>> {
         // If the Bdd is false return None.
         if self.is_false() {
-            return Err("The problem is not solvable!");
+             return Err(anyhow!("The problem is not solvable!"));
         }
         // Initialise the final assignment with a capacity of the total number of variables.
         let mut assignment: HashMap<i32, bool> = HashMap::with_capacity(variables.len() as usize);

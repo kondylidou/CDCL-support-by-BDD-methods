@@ -1,53 +1,66 @@
-/*
-pub struct GlobalSharingManager {
-    sender_global_to_bdd: Sender<Vec<i32>>,
-    sender_global_to_glucose: Sender<Vec<i32>>,
-    receiver_global_from_bdd: Receiver<Vec<i32>>,
-    receiver_global_from_glucose: Receiver<Vec<i32>>,
-    pub clause_database: ClauseDatabase,
-}
+// Overall, there are three reasons why a clause offered by a
+// core solver can get discarded. One is that it was duplicate
+// or wrongly considered to be duplicate due to the probabilistic
+// nature of Bloom filters. Second is that another core solver was adding
+// its clause to the data structure for global export at the same time.
+// The last reason is that it did not fit into the fixed size message
+// sent to the other MPI processes. Although important learned clauses
+// might get lost, we believe that this relaxed approach is still beneficial
+// since it allows a simpler and more efficient implementation of clause sharing.
 
-impl GlobalSharingManager {
-    pub fn new(
-        sender_global_to_bdd: Sender<Vec<i32>>,
-        sender_global_to_glucose: Sender<Vec<i32>>,
-        receiver_global_from_bdd: Receiver<Vec<i32>>,
-        receiver_global_from_glucose: Receiver<Vec<i32>>,
-        clause_database: ClauseDatabase,
-    ) -> GlobalSharingManager {
-        GlobalSharingManager {
-            sender_global_to_bdd,
-            sender_global_to_glucose,
-            receiver_global_from_bdd,
-            receiver_global_from_glucose,
-            clause_database,
-        }
-    }
-}
-
-unsafe impl Send for GlobalSharingManager {}
-unsafe impl Sync for GlobalSharingManager {}
+use anyhow::{Result, anyhow};
+use crate::{GlucoseWrapper, add_incoming_clause_to_clauses_vec};
+use super::clause_database::ClauseDatabase;
 
 pub struct SharingManager {
-    pub sender: Sender<Vec<i32>>,
-    pub receiver: Receiver<Vec<i32>>,
-    pub solver_id: i32,
+    glucose: GlucoseWrapper,
+    database: ClauseDatabase
 }
 
 impl SharingManager {
-    pub fn new(
-        sender: Sender<Vec<i32>>,
-        receiver: Receiver<Vec<i32>>,
-        solver_id: i32,
-    ) -> SharingManager {
+    pub fn new(glucose: GlucoseWrapper) -> Self {
+        let database = ClauseDatabase::new();
         SharingManager {
-            sender,
-            receiver,
-            solver_id,
+            glucose,
+            database
         }
     }
-}
 
-unsafe impl Send for SharingManager {}
-unsafe impl Sync for SharingManager {}
- */
+    pub fn filter_clause(&mut self, clause: Vec<i32>) -> Result<Vec<i32>> {
+        if !self.database.global_filter_contains(&clause) {
+            self.database.insert_to_global_filter(&clause);
+            
+            if !self.database.local_filter_contains(&clause) {
+                self.database.insert_to_local_filter(&clause);
+                Ok(clause)
+            } else {
+                Err(anyhow!("Clause didn't pass the local filter: {:?}", clause))
+            }
+        } else {
+            Err(anyhow!("Clause didn't pass the global filter: {:?}", clause))
+        }
+    }
+
+    pub fn reset_local_filter(&mut self) {
+        self.database.reset_local_filter();
+    }
+
+    pub fn reset_global_filter(&mut self) {
+        self.database.reset_global_filter();
+    }
+
+    // TODO handle errors based on glucose
+    pub fn send_learned_clauses(&mut self, learned_clauses: Vec<Vec<i32>>) -> Result<()> {
+        self.reset_local_filter();
+        let solver = self.glucose.solver;
+    
+        for clause in learned_clauses {
+            if let Ok(filtered_clause) = self.filter_clause(clause) {
+                add_incoming_clause_to_clauses_vec(solver, filtered_clause);
+            }
+        }
+    
+        Ok(())
+    }
+    
+}
