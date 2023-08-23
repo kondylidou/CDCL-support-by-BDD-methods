@@ -1,6 +1,7 @@
-use crate::expr::bool_expr::{Clause, Expr};
+use crate::{expr::bool_expr::{Clause, Expr}, bdd_util::BddVar};
 use std::collections::HashMap;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, Ok};
+use itertools::Itertools;
 
 /*
     Clause Structure: Variables that frequently appear together within the same clause tend to interact.
@@ -27,7 +28,8 @@ use anyhow::{Result, anyhow};
 
 #[derive(Clone, Debug)]
 pub struct Bucket{
-    pub clauses: Vec<Clause>
+    pub clauses: Vec<Clause>,
+    pub index: i32
 }
 
 impl Bucket {
@@ -104,18 +106,39 @@ impl Bucket {
         self.clauses.retain(|clause| !clause.is_determined());
     }
 
-    // Function to perform full bucket elimination
+    /// This function processes a bucket. It resolves each pair Var[index] AND -Var[index]
     pub fn bucket_elimination(&mut self) -> Result<()> {
-        let var_to_eliminate = self.choose_variable_to_eliminate(); // Variable selection heuristic
-        if var_to_eliminate == i32::MAX {
-            return Err(anyhow!("No variables to eliminate"));
+        let mut resolved_clauses: Vec<Clause> = Vec::new();
+
+        let (pos_occ, neg_occ): (Vec<Clause>, Vec<Clause>) = self.clauses.clone().into_iter().partition(|clause| 
+            clause.clause_contains_pos_var(self.index));
+
+        // No pairs can be built here so we move on to the next bucket
+        if pos_occ.is_empty() || neg_occ.is_empty() {
+            return Err(anyhow!("No pairs can be built!".to_string()));
         }
-        self.eliminate_variable(var_to_eliminate);
-        if self.clauses.is_empty() {
-            return Err(anyhow!("Unsatisfiable constraint"));
+
+        for (expr1, expr2) in pos_occ.iter().flat_map(|e1| {
+            neg_occ
+                .iter()
+                .map(move |e2| (e1, e2))
+        }) {
+            let resolved_clause = expr1.resolve(expr2);
+            if !resolved_clause.is_empty() {
+                resolved_clauses.push(resolved_clause);
+            }
         }
+
+        if resolved_clauses.is_empty() {
+            return Err(anyhow!("The empty clause was generated in resolution!".to_string()));
+        }
+
+        resolved_clauses = resolved_clauses.into_iter().unique().collect::<Vec<Clause>>();
+        
+        self.clauses = resolved_clauses;
+
         Ok(())
-    }
+    } 
 }
 
 #[cfg(test)]
@@ -130,7 +153,7 @@ mod tests {
         let clause2 = Clause {
             literals: vec![Expr::Var(2), Expr::Var(3)].into_iter().collect(),
         };
-        let bucket = Bucket{ clauses: vec![clause1.clone(), clause2.clone()] };
+        let bucket = Bucket{ clauses: vec![clause1.clone(), clause2.clone()], index: 2 };
 
         let chosen_var = bucket.choose_variable_to_eliminate();
         assert_eq!(chosen_var, 1);

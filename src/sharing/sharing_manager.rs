@@ -56,6 +56,7 @@ impl SharingManager {
     
         for clause in learned_clauses {
             if let Ok(filtered_clause) = self.filter_clause(clause) {
+                println!("clause sent {:?}", filtered_clause);
                 add_incoming_clause_to_clauses_vec(solver, filtered_clause);
             }
         }
