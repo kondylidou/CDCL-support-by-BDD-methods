@@ -254,6 +254,8 @@ public:
     using VecList = std::list<std::tuple<Solver::VecTuple, std::string>>;
     using ListForInstances = std::list<std::tuple<VecList, std::string>>;
 
+    using BddClauses = std::list<std::vector<int>>;
+
     //For each instance, save the Vectors and the corresponding instanceName in here
     ListForInstances instanceList;
     
@@ -377,6 +379,20 @@ protected:
     //lk
     vec<Lit>            add_tmp_send;
     vec<Lit>            add_tmp_receive;
+
+    //DR
+    using BDDClauses = std::vector<std::vector<vec<Lit>>>;
+    BDDClauses bddClauses;
+
+    using BDDRefs = std::vector<CRef>;
+    BDDRefs refs;
+
+    
+    void addBDDToVec(vec<Lit>);
+    void createCRefs(vec<Lit>);
+    void addLearntClauseFromBDD(CRef);
+    void iterateTroughBDDClauses();
+
     //vec<int>          add_conflicts;
     //int               tmp_conflict;
 

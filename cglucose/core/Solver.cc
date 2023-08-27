@@ -671,7 +671,6 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt,vec<Lit>&selectors, int& o
         // Special case for binary clauses
         // The first one has to be SAT
         if (p != lit_Undef && c.size() == 2 && value(c[0]) == l_False) {
-
             assert(value(c[1]) == l_True);
             Lit tmp = c[0];
             c[0] = c[1], c[1] = tmp;
@@ -1277,7 +1276,7 @@ lbool Solver::search(int nof_conflicts) {
 
     //adding counter to the number of starts
     restarts.emplace_back(std::make_tuple(starts,cpuTime()));
- 
+    
     for (;;) {
         if (decisionLevel() == 0) { // We import clauses FIXME: ensure that we will import clauses enventually (restart after some point)
             parallelImportUnaryClauses();
@@ -1353,7 +1352,7 @@ lbool Solver::search(int nof_conflicts) {
                 nbUn++;
                 parallelExportUnaryClause(learnt_clause[0]);
             } else {
-                CRef cr = ca.alloc(learnt_clause, true);
+                CRef cr = ca.alloc(learnt_clause, true);                
                 ca[cr].setLBD(nblevels);
                 ca[cr].setOneWatched(false);
 		        ca[cr].setSizeWithoutSelectors(szWithoutSelectors);
@@ -1373,8 +1372,7 @@ lbool Solver::search(int nof_conflicts) {
 
         } else {
             // Our dynamic restart, see the SAT09 competition compagnion paper 
-            if (
-                    (lbdQueue.isvalid() && ((lbdQueue.getavg() * K) > (sumLBD / conflictsRestarts)))) {
+            if ((lbdQueue.isvalid() && ((lbdQueue.getavg() * K) > (sumLBD / conflictsRestarts)))) {
                 lbdQueue.fastclear();
                 progress_estimate = progressEstimate();
                 int bt = 0;
@@ -1429,12 +1427,56 @@ lbool Solver::search(int nof_conflicts) {
                 }
             }
 
-            // Increase decision level and enqueue 'next'
+            //Increase decision level and enqueue 'next'
             newDecisionLevel();
             uncheckedEnqueue(next);
+
         }
     }
 }
+
+/************************************************************************************/
+/****************************Danail**************************************************/
+/************************************************************************************/
+
+//Add a vec<Lit> to the solver database of new clauses from the BDDs
+void Solver::addBDDToVec(vec<Lit> lVec){
+    bddClauses.emplace_back(lVec);
+}
+
+//Adds all necessary to the clause, so we can add it to the learnts and add it to the solver
+void Solver::addLearntClauseFromBDD(CRef c){
+    Clause& clause = ca[c];
+    clause.setLBD(3);
+    clause.setCanBeDel(false); //Not sure if thats right 
+    clause.setSizeWithoutSelectors(clause.size());
+    clause.setOneWatched(false);
+
+    learnts.push(c);
+    attachClause(c);
+    lastLearntClause = c; // Use in multithread (to hard to put inside ParallelSolver)
+    claBumpActivity(ca[c]);
+}
+
+//Iterates trough the bddClauses Vector of vectors and performs the action to add the lit
+//to the learnts
+void Solver::iterateTroughBDDClauses(){
+    int index = 0;
+    for (const auto& elem : bddClauses){
+        //Create Cref from Vec<Lit>
+        CRef ref =  ca.alloc(elem[index], true);
+        //Safe the ref if we need it later
+        refs.emplace_back(ref);
+        addLearntClauseFromBDD(ref);
+        uncheckedEnqueue(elem[index][0], ref);
+        index++;
+    }
+}
+
+
+/************************************************************************************/
+/************************************************************************************/
+/************************************************************************************/
 
 double Solver::progressEstimate() const {
     double progress = 0;
