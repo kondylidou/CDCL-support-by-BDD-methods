@@ -1,10 +1,10 @@
 use crate::bdd_util::{BddNode, BddPointer, BddVar};
 use crate::expr::bool_expr;
+use anyhow::{anyhow, Result};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::iter::Map;
 use std::ops::Range;
-use anyhow::{Result, anyhow};
 
 // The Bdd receives the clauses 'Vec<Vec<i32>>'. They can be viewed as a boolean
 // expression for example (x1 OR x2) AND (NOT x1 OR x2). Then the INF (if then else normalform)
@@ -387,8 +387,8 @@ impl Bdd {
 
                     // The min variable is now the one with the higher score, so
                     // the smallest index in the mapping
-                    let l_var_index = ordering.get(&l_var.name).unwrap();
-                    let r_var_index = ordering.get(&r_var.name).unwrap();
+                    let l_var_index = ordering.get(&l_var.name).unwrap_or(&usize::MAX);
+                    let r_var_index = ordering.get(&r_var.name).unwrap_or(&usize::MAX);
                     let min_var = if l_var_index < r_var_index {
                         l_var
                     } else {
@@ -471,9 +471,11 @@ impl Bdd {
 
     pub fn find_terminal_nodes_conflicts(&self) -> Vec<(bool, BddPointer)> {
         let mut terminal_nodes: Vec<(bool, BddPointer)> = Vec::new();
-    
+
         for ptr in self.indices() {
-            if ptr.is_terminal() { continue; }
+            if ptr.is_terminal() {
+                continue;
+            }
             if self.low_node_ptr(ptr) == BddPointer::new_zero() {
                 terminal_nodes.push((false, ptr));
             }
@@ -481,7 +483,7 @@ impl Bdd {
                 terminal_nodes.push((true, ptr));
             }
         }
-    
+
         terminal_nodes
     }
 
@@ -490,7 +492,7 @@ impl Bdd {
     fn solve(&self, variables: &Vec<BddVar>) -> Result<HashMap<i32, bool>> {
         // If the Bdd is false return None.
         if self.is_false() {
-             return Err(anyhow!("The problem is not solvable!"));
+            return Err(anyhow!("The problem is not solvable!"));
         }
         // Initialise the final assignment with a capacity of the total number of variables.
         let mut assignment: HashMap<i32, bool> = HashMap::with_capacity(variables.len() as usize);
@@ -572,14 +574,8 @@ impl Bdd {
 
         // Update the BDD nodes' pointers based on the new mapping
         let mut new_nodes = Vec::with_capacity(self.nodes.len());
-        new_nodes.push(BddNode::mk_zero(BddVar {
-            name: i32::MAX,
-            score: 0.0,
-        }));
-        new_nodes.push(BddNode::mk_one(BddVar {
-            name: i32::MAX,
-            score: 0.0,
-        }));
+        new_nodes.push(BddNode::mk_zero(BddVar { name: i32::MAX }));
+        new_nodes.push(BddNode::mk_one(BddVar { name: i32::MAX }));
 
         for (new_index, (old_index, &node)) in sorted_nodes.iter().enumerate() {
             let old_pointer = BddPointer::new(*old_index);

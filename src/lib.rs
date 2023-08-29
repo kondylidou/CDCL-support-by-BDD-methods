@@ -6,6 +6,7 @@ mod variable_ordering {
 mod approx;
 mod bdd;
 mod bdd_util;
+pub mod parser;
 
 mod statistics {
     pub mod stats;
@@ -16,9 +17,9 @@ mod expr {
 }
 
 mod sharing {
-    pub mod sharing_manager;
-    mod clause_gen;
     mod clause_database;
+    mod clause_gen;
+    pub mod sharing_manager;
 }
 
 pub mod bindings {
@@ -35,13 +36,11 @@ use std::time::Instant;
 
 #[derive(Clone, Copy)]
 pub struct GlucoseWrapper {
-    pub solver: *mut CGlucose
+    pub solver: *mut CGlucose,
 }
 impl GlucoseWrapper {
     pub fn new(solver: *mut CGlucose) -> GlucoseWrapper {
-        GlucoseWrapper {
-            solver
-        }
+        GlucoseWrapper { solver }
     }
 }
 unsafe impl Send for GlucoseWrapper {}

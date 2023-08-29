@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-use std::cmp::Ordering::{Equal, Greater, Less};
 use std::hash::{Hash, Hasher};
 
 // Nodes are represented as numbers with 0 and 1 reserved for the terminal nodes.
@@ -79,12 +77,11 @@ impl PartialEq for BddPointer {
 #[derive(Debug, Clone, Copy)]
 pub struct BddVar {
     pub name: i32,
-    pub score: f64,
 }
 
 impl BddVar {
     pub fn new(name: i32, score: f64) -> Self {
-        BddVar { name, score }
+        BddVar { name }
     }
 
     fn repr(&self) -> String {
@@ -119,18 +116,6 @@ impl PartialEq for BddVar {
 }
 
 impl Eq for BddVar {}
-
-impl PartialOrd for BddVar {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.name.eq(&other.name) {
-            Some(Equal)
-        } else if self.score > other.score {
-            Some(Less)
-        } else {
-            Some(Greater)
-        }
-    }
-}
 
 impl Hash for BddVar {
     fn hash<H: Hasher>(&self, state: &mut H) {

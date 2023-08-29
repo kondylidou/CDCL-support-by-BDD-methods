@@ -1,7 +1,7 @@
-use crate::{expr::bool_expr::{Clause, Expr}, bdd_util::BddVar};
-use std::collections::HashMap;
-use anyhow::{Result, anyhow, Ok};
+use crate::expr::bool_expr::{Clause, Expr};
+use anyhow::{anyhow, Ok, Result};
 use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
 
 /*
     Clause Structure: Variables that frequently appear together within the same clause tend to interact.
@@ -26,13 +26,24 @@ use itertools::Itertools;
     Variables that are part of the same logical rule or constraint are dependent.
 */
 
-#[derive(Clone, Debug)]
-pub struct Bucket{
+#[derive(Clone, Debug, PartialEq)]
+pub struct Bucket {
     pub clauses: Vec<Clause>,
-    pub index: i32
+    pub index: i32,
 }
 
 impl Bucket {
+    pub fn vars(&self) -> HashSet<i32> {
+        let mut vars = HashSet::new();
+
+        for clause in &self.clauses {
+            for expr in &clause.literals {
+                vars.insert(expr.get_var_name());
+            }
+        }
+
+        vars
+    }
     // Function to choose a variable for elimination based on the minimum width heuristic
     pub fn choose_variable_to_eliminate(&self) -> i32 {
         let mut min_width = usize::MAX;
@@ -110,19 +121,21 @@ impl Bucket {
     pub fn bucket_elimination(&mut self) -> Result<()> {
         let mut resolved_clauses: Vec<Clause> = Vec::new();
 
-        let (pos_occ, neg_occ): (Vec<Clause>, Vec<Clause>) = self.clauses.clone().into_iter().partition(|clause| 
-            clause.clause_contains_pos_var(self.index));
+        let (pos_occ, neg_occ): (Vec<Clause>, Vec<Clause>) = self
+            .clauses
+            .clone()
+            .into_iter()
+            .partition(|clause| clause.clause_contains_pos_var(self.index));
 
         // No pairs can be built here so we move on to the next bucket
         if pos_occ.is_empty() || neg_occ.is_empty() {
             return Err(anyhow!("No pairs can be built!".to_string()));
         }
 
-        for (expr1, expr2) in pos_occ.iter().flat_map(|e1| {
-            neg_occ
-                .iter()
-                .map(move |e2| (e1, e2))
-        }) {
+        for (expr1, expr2) in pos_occ
+            .iter()
+            .flat_map(|e1| neg_occ.iter().map(move |e2| (e1, e2)))
+        {
             let resolved_clause = expr1.resolve(expr2);
             if !resolved_clause.is_empty() {
                 resolved_clauses.push(resolved_clause);
@@ -130,15 +143,20 @@ impl Bucket {
         }
 
         if resolved_clauses.is_empty() {
-            return Err(anyhow!("The empty clause was generated in resolution!".to_string()));
+            return Err(anyhow!(
+                "The empty clause was generated in resolution!".to_string()
+            ));
         }
 
-        resolved_clauses = resolved_clauses.into_iter().unique().collect::<Vec<Clause>>();
-        
+        resolved_clauses = resolved_clauses
+            .into_iter()
+            .unique()
+            .collect::<Vec<Clause>>();
+
         self.clauses = resolved_clauses;
 
         Ok(())
-    } 
+    }
 }
 
 #[cfg(test)]
@@ -153,7 +171,10 @@ mod tests {
         let clause2 = Clause {
             literals: vec![Expr::Var(2), Expr::Var(3)].into_iter().collect(),
         };
-        let bucket = Bucket{ clauses: vec![clause1.clone(), clause2.clone()], index: 2 };
+        let bucket = Bucket {
+            clauses: vec![clause1.clone(), clause2.clone()],
+            index: 2,
+        };
 
         let chosen_var = bucket.choose_variable_to_eliminate();
         assert_eq!(chosen_var, 1);

@@ -1,14 +1,8 @@
 use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
 use std::fmt;
-use anyhow::Result;
+use std::hash::{Hash, Hasher};
 
-use crate::{
-    bdd::Bdd,
-    bdd_util::BddVar,
-    expr::bool_expr::Expr::*,
-    variable_ordering::var_ordering_builder::{self, Dimacs},
-};
+use crate::{bdd::Bdd, bdd_util::BddVar, expr::bool_expr::Expr::*};
 
 /// Recursive implementation of boolean expression.
 #[derive(Clone, Debug, Eq, Hash)]
@@ -24,78 +18,6 @@ impl Expr {
             Expr::Var(name) => *name,
             Expr::Not(inner) => inner.get_var_name(),
             _ => i32::MAX,
-        }
-    }
-
-    pub fn parse_dimacs_cnf_file(file_path: &str) -> Result<Dimacs, String> {
-        let content = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-        let mut var_map: std::collections::HashMap<i32, Expr> = std::collections::HashMap::new();
-        // this hashmap contains a variable and the arities of the clauses where
-        // this variable is appearing.
-        let mut var_clause_arities: std::collections::HashMap<i32, Vec<usize>> =
-            std::collections::HashMap::new();
-        let mut expressions: Vec<Clause> = Vec::new();
-        let mut nb_v = 0;
-        let mut nb_c = 0;
-
-        for line in content.lines() {
-            let tokens: Vec<&str> = line.trim().split_whitespace().collect();
-            if tokens.is_empty() {
-                continue; // Skip empty lines
-            }
-
-            match tokens[0] {
-                "c" => continue, // Skip comments
-                "p" => {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() >= 4 {
-                        nb_v = parts[2].parse().unwrap();
-                        nb_c = parts[3].parse().unwrap();
-                    }
-                }
-                _ => {
-                    let mut literals = HashSet::new();
-                    let clause: Vec<i32> = tokens
-                        .iter()
-                        .take_while(|&&token| token != "0")
-                        .map(|&token| token.parse().expect("Error parsing literal"))
-                        .collect();
-
-                    for lit in &clause {
-                        // add the clause arity to each variable appearing in this clause
-                        if let Some(arities) = var_clause_arities.get_mut(&lit.abs()) {
-                            arities.push(clause.len());
-                        } else {
-                            var_clause_arities.insert(lit.abs(), vec![clause.len()]);
-                        }
-                        literals.insert(Expr::parse_lit(*lit, &mut var_map));
-                    }
-                    expressions.push(Clause { literals });
-                }
-            }
-        }
-        let vars_scores = var_ordering_builder::calculate_scores(var_clause_arities);
-
-        let dimacs = Dimacs {
-            nb_v,
-            nb_c,
-            var_map,
-            vars_scores,
-            expressions,
-        };
-
-        Ok(dimacs)
-    }
-
-    fn parse_lit(lit: i32, var_map: &mut std::collections::HashMap<i32, Expr>) -> Expr {
-        let var_expr = var_map
-            .entry(lit.abs())
-            .or_insert_with(|| Expr::Var(lit.abs()));
-
-        if lit < 0 {
-            Expr::Not(Box::new(var_expr.clone()))
-        } else {
-            var_expr.clone()
         }
     }
 
@@ -242,6 +164,10 @@ impl Clause {
         self.literals.is_empty()
     }
 
+    pub fn size(&self) -> usize {
+        self.literals.len()
+    }
+
     // Method to check if a clause contains an expression
     pub fn contains_expr(&self, expr: &Expr) -> bool {
         self.literals.contains(expr)
@@ -275,7 +201,11 @@ impl Clause {
         })
     }
 
-    pub fn to_bdd(&self, variables: &Vec<BddVar>, ordering: &std::collections::HashMap<i32, usize>) -> Bdd {
+    pub fn to_bdd(
+        &self,
+        variables: &Vec<BddVar>,
+        ordering: &std::collections::HashMap<i32, usize>,
+    ) -> Bdd {
         let mut bdd = self
             .literals
             .iter()
@@ -430,20 +360,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_lit_positive() {
-        let mut var_map: std::collections::HashMap<i32, Expr> = std::collections::HashMap::new();
-        let expr = Expr::parse_lit(1, &mut var_map);
-        assert_eq!(expr, Expr::Var(1));
-    }
-
-    #[test]
-    fn test_parse_lit_negative() {
-        let mut var_map: std::collections::HashMap<i32, Expr> = std::collections::HashMap::new();
-        let expr = Expr::parse_lit(-2, &mut var_map);
-        assert_eq!(expr, Expr::Not(Box::new(Expr::Var(2))));
-    }
-
-    #[test]
     fn test_to_bdd() {
         let var1 = BddVar::new(1, 0.5);
         let var2 = BddVar::new(2, 0.3);
@@ -461,7 +377,11 @@ mod tests {
         let bdd = expr.to_bdd(&variables, &ordering);
 
         let mut res = Bdd::new();
-        res.nodes.push(BddNode::mk_node(BddVar { name: 2, score: 0.3 }, BddPointer::new_one(), BddPointer::new_zero()));
+        res.nodes.push(BddNode::mk_node(
+            BddVar { name: 2 },
+            BddPointer::new_one(),
+            BddPointer::new_zero(),
+        ));
         assert_eq!(bdd, res)
     }
 

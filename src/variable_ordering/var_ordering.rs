@@ -1,12 +1,15 @@
-use std::collections::{HashMap, HashSet};
 use super::bucket::Bucket;
 use anyhow::Result;
-use super::var_ordering_builder::Dimacs;
+use std::cmp::Reverse;
+use std::collections::{HashMap, HashSet};
+
 use crate::bdd::Bdd;
 use crate::bdd_util::BddVar;
 use crate::expr::bool_expr::{Clause, Expr};
+use crate::parser::Dimacs;
 use crate::sharing::sharing_manager::SharingManager;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
+use rayon::slice::ParallelSliceMut;
 
 /*
     Variable Ordering: The choice of variable ordering can significantly impact the performance of BDDs.
@@ -66,7 +69,10 @@ impl BddVarOrdering {
 
             if let Some(var) = highest_scored_var {
                 // Retrieve or create the bucket associated with the highest-scored variable
-                let bucket = buckets.entry(var).or_insert_with(|| Bucket { clauses: Vec::new(), index: var });
+                let bucket = buckets.entry(var).or_insert_with(|| Bucket {
+                    clauses: Vec::new(),
+                    index: var,
+                });
                 bucket.clauses.push(clause.clone());
             }
         }
@@ -78,23 +84,30 @@ impl BddVarOrdering {
         result_buckets
     }
 
-    // Function to group clauses into buckets based on interacting variables
-    fn group_clauses_into_buckets_interactions(&self) -> Buckets {
-        let interactions: HashMap<i32, Vec<i32>> = self.find_interacting_variables();
-        let mut buckets: Buckets = Vec::new();
+    fn reorder_based_on_interactions(&mut self, processed_clauses: Vec<usize>) -> Vec<Bucket> {
+        // Retain elements that are not at positions to remove
+        for idx in processed_clauses {
+            self.expressions.remove(idx);
+        }
+        println!("removed");
+        self.create_interaction_based_ordering();
+        println!("ordering");
+        self.group_clauses_into_buckets_interactions()
+    }
 
-        let mut n = 0;
+    fn group_clauses_into_buckets_interactions(&self) -> Vec<Bucket> {
+        let variable_interactions = self.find_interacting_variables();
+        let mut variable_buckets: HashMap<usize, HashSet<i32>> = HashMap::new();
+
+        let mut buckets: Vec<Bucket> = Vec::new();
+
         for clause in &self.expressions {
             let mut placed = false;
 
-            for bucket in &mut buckets {
+            for (bucket_idx, bucket) in buckets.iter_mut().enumerate() {
                 if clause.literals.iter().any(|expr| {
-                    interactions[&expr.get_var_name()].iter().any(|var| {
-                        bucket
-                            .clauses
-                            .iter()
-                            .any(|clause| clause.clause_contains_var(*var))
-                    })
+                    variable_interactions[&expr.get_var_name()]
+                        .is_subset(&variable_buckets[&bucket_idx])
                 }) {
                     bucket.clauses.push(clause.clone());
                     placed = true;
@@ -103,29 +116,56 @@ impl BddVarOrdering {
             }
 
             if !placed {
-                buckets.push(Bucket{clauses: vec![clause.clone()], index: n });
-                n+=1;
+                buckets.push(Bucket {
+                    clauses: vec![clause.clone()],
+                    index: (buckets.len()) as i32,
+                });
+                variable_buckets.insert(
+                    buckets.len() - 1,
+                    clause
+                        .literals
+                        .iter()
+                        .map(|expr| expr.get_var_name())
+                        .collect(),
+                );
             }
         }
 
         buckets
     }
 
-    // Function to find frequently interacting variables based on clause structure
-    fn find_interacting_variables(&self) -> HashMap<i32, Vec<i32>> {
-        let mut variable_interactions: HashMap<i32, Vec<i32>> = HashMap::new();
+    fn create_interaction_based_ordering(&mut self) -> HashMap<i32, HashSet<i32>> {
+        let variable_interactions = self.find_interacting_variables();
+
+        let mut variable_scores: HashMap<i32, usize> = HashMap::new();
+
+        for (var, interactions) in &variable_interactions {
+            variable_scores.insert(*var, interactions.len());
+        }
+
+        // TODO probably handle unwrap here
+        self.variables
+            .par_sort_by_key(|var| Reverse(variable_scores.get(&var.name).unwrap()));
+
+        let mut new_ordering = HashMap::new();
+        for (index, var) in self.variables.iter().enumerate() {
+            new_ordering.insert(var.name, index);
+        }
+        self.ordering = new_ordering;
+
+        variable_interactions
+    }
+
+    fn find_interacting_variables(&self) -> HashMap<i32, HashSet<i32>> {
+        let mut variable_interactions: HashMap<i32, HashSet<i32>> = HashMap::new();
 
         for clause in &self.expressions {
             for literal in &clause.literals {
                 let var = literal.get_var_name();
-                let interacting_vars = variable_interactions.entry(var).or_insert(Vec::new());
+                let interacting_vars = variable_interactions.entry(var).or_insert(HashSet::new());
 
-                // Iterate through the rest of the literals in the clause
                 for other_literal in clause.literals.iter().filter(|&lit| lit != literal) {
-                    let other_var = other_literal.get_var_name();
-                    if !interacting_vars.contains(&other_var) {
-                        interacting_vars.push(other_var);
-                    }
+                    interacting_vars.insert(other_literal.get_var_name());
                 }
             }
         }
@@ -192,8 +232,11 @@ impl BddVarOrdering {
             }
 
             if !placed {
-                buckets.push(Bucket{ clauses: vec![clause.clone()], index: n });
-                n+=1;
+                buckets.push(Bucket {
+                    clauses: vec![clause.clone()],
+                    index: n,
+                });
+                n += 1;
             }
         }
         buckets
@@ -214,9 +257,8 @@ impl BddVarOrdering {
         }
 
         // Sort variables by frequency in descending order
-        self.variables.sort_by_key(|var| {
-            variable_frequencies.get(&var.name).cloned().unwrap_or(0)
-        });
+        self.variables
+            .sort_by_key(|var| variable_frequencies.get(&var.name).cloned().unwrap_or(0));
 
         // Update the ordering HashMap based on the new variable order
         self.update_ordering_based_on_new_variable_order();
@@ -233,52 +275,71 @@ impl BddVarOrdering {
 
     pub fn build_bdd(&self, sharing_manager: &mut SharingManager) -> Bdd {
         let mut bdd = self.expressions[0].to_bdd(&self.variables, &self.ordering);
+        let mut n = 1;
+        while n < self.expressions.len() {
+            let (_, temp_bdd) = rayon::join(
+                || {
+                    let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
+                    // TODO handle unwrap
+                    sharing_manager.send_learned_clauses(temp_learnts).unwrap();
+                },
+                || self.expressions[n].to_bdd(&self.variables, &self.ordering),
+            );
+            bdd = bdd.and(&temp_bdd, &self.ordering);
+            n += 1;
+        }
+        bdd
+    }
+
+    pub fn build(&mut self, sharing_manager: &mut SharingManager) -> Result<()> {
+        let mut clauses_processed = Vec::new();
+        let mut clauses_num_processed = 0;
+        // Bucket Clustering
+        let buckets = self.group_clauses_into_buckets_variable_scores();
+        let variable_scores_ordering = true;
+        // TODO find the right order
+        for mut bucket in buckets {
+            // the initial ordering doesn't help at this point so we go and reorder
+            /*
+            if bucket.clauses.len() > 50 {
+                assert_eq!(clauses_num_processed, clauses_processed.len());
+                println!("PASSED!");
+                self.reorder_based_on_interactions(clauses_processed.clone());
+                println!("NEW BUCKETS CREATED!");
+            }*/
+            let positions: Vec<usize> = bucket
+                .clauses
+                .iter()
+                .filter_map(|clause| self.expressions.iter().position(|c| c.eq(clause)))
+                .collect();
+
+            clauses_processed.extend(positions);
+            clauses_num_processed += bucket.clauses.len();
+            // Bucket Elimination
+            // TODO handle unwrap
+            if variable_scores_ordering {
+                let _ = bucket.bucket_elimination();
+            }
+            // After performing bucket elimination on each bucket,
+            // reevaluate the variable ordering to find an optimal
+            // arrangement that reduces the overall BDD size.
+            // TODO
+
+            let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
+
             let mut n = 1;
-            while n < self.expressions.len() {
+            while n < bucket.clauses.len() {
                 let (_, temp_bdd) = rayon::join(
                     || {
                         let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
                         // TODO handle unwrap
                         sharing_manager.send_learned_clauses(temp_learnts).unwrap();
                     },
-                    || self.expressions[n].to_bdd(&self.variables, &self.ordering)
-                );
-                bdd = bdd.and(&temp_bdd, &self.ordering);
-                n += 1;
-            }
-            bdd
-    }
-
-    pub fn build(&self, sharing_manager: &mut SharingManager) -> Result<()> {
-        // Bucket Clustering
-        let buckets = self.group_clauses_into_buckets_variable_scores();
-        // TODO find the right order 
-        for mut bucket in buckets {
-            // Bucket Elimination
-            let _ = bucket.bucket_elimination();
-            println!("----------------------------------------------{:?}", bucket.clauses.len());
-            // After performing bucket elimination on each bucket, 
-            // reevaluate the variable ordering to find an optimal 
-            // arrangement that reduces the overall BDD size.
-            // TODO 
-
-            let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
-            let mut n = 1;
-            while n < bucket.clauses.len() {
-                rayon::join(
-                    || {
-                        let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
-                        // TODO handle unwrap
-                        println!("===========================================================");
-                        println!("{:?}",temp_learnts.len());
-                        sharing_manager.send_learned_clauses(temp_learnts).unwrap();
-                    },
-                    || 
+                    ||
                     //  TODO Dynamic Reordering
-                    {}
-                    ,
+                    bucket.clauses[n].to_bdd(&self.variables, &self.ordering),
                 );
-                let temp_bdd = self.expressions[n].to_bdd(&self.variables, &self.ordering);
+
                 bdd = bdd.and(&temp_bdd, &self.ordering);
                 n += 1;
             }
@@ -365,8 +426,75 @@ impl BddVarOrdering {
 
 #[cfg(test)]
 mod tests {
-    use std::{time::Instant, collections::{HashSet, HashMap}};
-    use crate::{expr::bool_expr::{Expr, Clause}, variable_ordering::{var_ordering::BddVarOrdering, var_ordering_builder::Dimacs}, sharing::sharing_manager::{self, SharingManager}, GlucoseWrapper, init_glucose_solver};
+    use crate::{
+        bdd_util::BddVar,
+        expr::bool_expr::{Clause, Expr},
+        init_glucose_solver,
+        parser::{self, Dimacs},
+        sharing::sharing_manager::SharingManager,
+        variable_ordering::var_ordering::BddVarOrdering,
+        GlucoseWrapper,
+    };
+    use std::{
+        collections::{HashMap, HashSet},
+        time::Instant,
+    };
+
+    fn create_sample_bdd_var_ordering() -> BddVarOrdering {
+        // Create a sample BddVarOrdering for testing
+        // Replace with your initialization logic
+        BddVarOrdering {
+            variables: vec![
+                BddVar { name: 1 },
+                BddVar { name: 2 },
+                BddVar { name: 3 },
+                BddVar { name: 4 },
+                BddVar { name: 5 },
+                // ... more variables
+            ],
+            expressions: vec![
+                Clause {
+                    literals: HashSet::from_iter(vec![
+                        Expr::Var(1),
+                        Expr::Not(Box::new(Expr::Var(2))),
+                    ]),
+                },
+                Clause {
+                    literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Var(4)]),
+                },
+                Clause {
+                    literals: HashSet::from_iter(vec![
+                        Expr::Not(Box::new(Expr::Var(2))),
+                        Expr::Var(4),
+                        Expr::Var(5),
+                    ]),
+                },
+                Clause {
+                    literals: HashSet::from_iter(vec![
+                        Expr::Not(Box::new(Expr::Var(1))),
+                        Expr::Var(2),
+                    ]),
+                },
+                Clause {
+                    literals: HashSet::from_iter(vec![
+                        Expr::Var(2),
+                        Expr::Not(Box::new(Expr::Var(3))),
+                    ]),
+                },
+                // ... more expressions
+            ],
+            ordering: HashMap::from_iter(vec![(1, 0), (2, 1), (3, 2), (4, 3), (5, 4)]),
+        }
+    }
+
+    #[test]
+    fn test_create_interaction_based_ordering() {
+        let mut bdd_var_ordering = create_sample_bdd_var_ordering();
+        bdd_var_ordering.create_interaction_based_ordering();
+        assert_eq!(*bdd_var_ordering.ordering.get(&2).unwrap(), 0 as usize);
+        assert_eq!(*bdd_var_ordering.ordering.get(&4).unwrap(), 1 as usize);
+        assert_eq!(*bdd_var_ordering.ordering.get(&3).unwrap(), 4 as usize);
+    }
 
     #[test]
     fn test_find_interacting_variables() {
@@ -381,14 +509,20 @@ mod tests {
                 literals: HashSet::from_iter(vec![Expr::Var(1), Expr::Var(3)]),
             },
         ];
-        let dimacs = Dimacs { nb_v: 3, nb_c: 3, var_map: HashMap::new(), vars_scores: HashMap::new(), expressions: clauses };
+        let dimacs = Dimacs {
+            nb_v: 3,
+            nb_c: 3,
+            var_map: HashMap::new(),
+            vars_scores: HashMap::new(),
+            expressions: clauses,
+        };
         let var_ordering = BddVarOrdering::new(dimacs);
         let interactions = var_ordering.find_interacting_variables();
 
         assert_eq!(interactions.len(), 3);
-        assert_eq!(interactions.get(&1), Some(&vec![2, 3]));
-        assert_eq!(interactions.get(&2), Some(&vec![1, 3]));
-        assert_eq!(interactions.get(&3), Some(&vec![2, 1]));
+        assert_eq!(interactions.get(&1), Some(&HashSet::from_iter(vec![2, 3])));
+        assert_eq!(interactions.get(&2), Some(&HashSet::from_iter(vec![1, 3])));
+        assert_eq!(interactions.get(&3), Some(&HashSet::from_iter(vec![2, 1])));
     }
 
     #[test]
@@ -406,7 +540,13 @@ mod tests {
 
         let expressions = vec![clause1.clone(), clause2.clone(), clause3.clone()];
 
-        let dimacs = Dimacs { nb_v: 3, nb_c: 3, var_map: HashMap::new(), vars_scores: HashMap::new(), expressions };
+        let dimacs = Dimacs {
+            nb_v: 3,
+            nb_c: 3,
+            var_map: HashMap::new(),
+            vars_scores: HashMap::new(),
+            expressions,
+        };
         let var_ordering = BddVarOrdering::new(dimacs);
         // Call the function
         let buckets = var_ordering.group_clauses_into_buckets_interactions();
@@ -437,20 +577,26 @@ mod tests {
             },
         ];
 
-        let dimacs = Dimacs { nb_v: 3, nb_c: 3, var_map: HashMap::new(), vars_scores: HashMap::new(), expressions: clauses };
+        let dimacs = Dimacs {
+            nb_v: 3,
+            nb_c: 3,
+            var_map: HashMap::new(),
+            vars_scores: HashMap::new(),
+            expressions: clauses,
+        };
         let var_ordering = BddVarOrdering::new(dimacs);
         let buckets = var_ordering.group_clauses_into_buckets_implications();
 
         assert_eq!(buckets.len(), 2)
     }
-    
+
     #[test]
-    pub fn bucket_elimination_bench() {
-        let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/70a8711118d4eaf15674ebc71bfb7c35-sted1_0x0_n438-636.cnf";
+    pub fn test_bench() {
+        let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/0b1041a1e55af6f3d2c63462a7400bd2-fermat-907547022132073.cnf";
 
         let start = Instant::now();
         // create the Dimacs instance
-        let expressions = Expr::parse_dimacs_cnf_file(path).unwrap();
+        let expressions = parser::parse_dimacs_cnf_file(path).unwrap();
         println!(
             "Time elapsed to parse the CNF formula : {:?}",
             start.elapsed()
@@ -460,25 +606,15 @@ mod tests {
         // build the solver
         let solver = init_glucose_solver();
         let glucose = GlucoseWrapper::new(solver);
-        // build the sharing manager 
+        // build the sharing manager
         let mut sharing_manager = SharingManager::new(glucose);
         // build the variable ordering
-        let var_ordering = BddVarOrdering::new(expressions);
+        let mut var_ordering = BddVarOrdering::new(expressions);
         println!(
             "Time elapsed to create the variable ordering : {:?}",
             start.elapsed()
         );
 
         var_ordering.build(&mut sharing_manager);
-
-        //let start = Instant::now();
-
-        //let first = var_ordering::get_key_by_value(&var_ordering.ordering, &0);
-        //let bucket = Bucket::create_bucket(first.unwrap(), &mut var_ordering.formula);
-        //println!("First bucket clauses num {:?}", bucket.neg_occ.len() + bucket.pos_occ.len());
-        //println!(
-        //    "Time elapsed for to create first bucket : {:?}",
-        //    start.elapsed()
-        //);
     }
 }

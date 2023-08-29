@@ -20,8 +20,16 @@ pub struct ClauseDatabase {
 impl ClauseDatabase {
     pub fn new() -> ClauseDatabase {
         ClauseDatabase {
-            global_filter: ClassicBloomFilter::new(100, 0.03, DefaultBuildHashKernels::new(random(), RandomState::new())),
-            local_filter: ClassicBloomFilter::new(100, 0.03, DefaultBuildHashKernels::new(random(), RandomState::new())),
+            global_filter: ClassicBloomFilter::new(
+                100,
+                0.03,
+                DefaultBuildHashKernels::new(random(), RandomState::new()),
+            ),
+            local_filter: ClassicBloomFilter::new(
+                100,
+                0.03,
+                DefaultBuildHashKernels::new(random(), RandomState::new()),
+            ),
         }
     }
 
