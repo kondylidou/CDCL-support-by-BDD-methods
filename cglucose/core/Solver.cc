@@ -1440,11 +1440,6 @@ lbool Solver::search(int nof_conflicts) {
 /****************************Danail**************************************************/
 /************************************************************************************/
 
-//Add a vec<Lit> to the solver database of new clauses from the BDDs
-void Solver::addBDDToVec(vec<Lit> lVec){
-    bddClauses.emplace_back(lVec);
-}
-
 //Adds all necessary to the clause, so we can add it to the learnts and add it to the solver
 void Solver::addLearntClauseFromBDD(CRef c){
     Clause& clause = ca[c];
@@ -1456,21 +1451,19 @@ void Solver::addLearntClauseFromBDD(CRef c){
     learnts.push(c);
     attachClause(c);
     lastLearntClause = c; // Use in multithread (to hard to put inside ParallelSolver)
-    claBumpActivity(ca[c]);
+    claBumpActivity(clause);
 }
 
 //Iterates trough the bddClauses Vector of vectors and performs the action to add the lit
 //to the learnts
 void Solver::iterateTroughBDDClauses(){
-    int index = 0;
     for (const auto& elem : bddClauses){
         //Create Cref from Vec<Lit>
-        CRef ref =  ca.alloc(elem[index], true);
+        CRef ref =  ca.alloc(elem, true);
         //Safe the ref if we need it later
         refs.emplace_back(ref);
         addLearntClauseFromBDD(ref);
-        uncheckedEnqueue(elem[index][0], ref);
-        index++;
+        uncheckedEnqueue(elem[0], ref);
     }
 }
 

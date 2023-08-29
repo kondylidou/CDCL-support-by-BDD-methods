@@ -382,14 +382,12 @@ protected:
     vec<Lit>            tmp_learnt;
 
     //DR
-    using BDDClauses = std::vector<std::vector<vec<Lit>>>;
+    using BDDClauses = std::vector<vec<Lit>>;
     BDDClauses bddClauses;
 
     using BDDRefs = std::vector<CRef>;
     BDDRefs refs;
 
-    void addBDDToVec(vec<Lit>);
-    void createCRefs(vec<Lit>);
     void addLearntClauseFromBDD(CRef);
     void iterateTroughBDDClauses();
 
