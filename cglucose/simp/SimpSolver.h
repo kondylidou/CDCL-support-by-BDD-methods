@@ -98,10 +98,13 @@ class SimpSolver : public Solver {
     int     getNTmpSend();
     int     getTmpSendLitAt(int pos);
     void    determineClauseVecCap(int size);
+    void    addToTmpLearntClause(Lit p);
     //int     getConflictsAt(int pos);
     //int     getAddConflictsSize();
 
     void    commitIncomingClause();
+
+    void    commitLearntClause();
 
     //gk
     bool    addClauseLink (Lit p);        // Add a binary clause to the solver.

@@ -56,6 +56,8 @@ use bindings::cglucose_set_random_seed;
 use bindings::cglucose_solve;
 use bindings::cglucose_solver_nodes;
 use bindings::cglucose_val;
+use bindings::cglucose_commit_learnt_clause;
+use bindings::cglucose_share_clause;
 use bindings::CGlucose;
 
 pub fn init_glucose_solver() -> *mut CGlucose {
@@ -171,11 +173,10 @@ pub fn run_glucose_parallel(
 
 pub fn add_incoming_clause_to_clauses_vec(s: *mut CGlucose, given: Vec<i32>) {
     unsafe {
-        cglucose_clean_clause_receive(s);
         for i in given {
-            cglucose_add_to_clause_receive(s, i as i32);
+            cglucose_share_clause(s, i as i32);
         }
-        cglucose_commit_incoming_clause(s);
+        cglucose_commit_learnt_clause(s);
     }
 }
 

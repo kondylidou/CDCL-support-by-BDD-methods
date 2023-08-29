@@ -379,6 +379,7 @@ protected:
     //lk
     vec<Lit>            add_tmp_send;
     vec<Lit>            add_tmp_receive;
+    vec<Lit>            tmp_learnt;
 
     //DR
     using BDDClauses = std::vector<std::vector<vec<Lit>>>;
@@ -387,7 +388,6 @@ protected:
     using BDDRefs = std::vector<CRef>;
     BDDRefs refs;
 
-    
     void addBDDToVec(vec<Lit>);
     void createCRefs(vec<Lit>);
     void addLearntClauseFromBDD(CRef);

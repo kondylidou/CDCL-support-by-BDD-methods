@@ -16,6 +16,8 @@ void cglucose_add_to_clause_receive (CGlucose * , int lit );
 void cglucose_clean_clause_send(CGlucose * );
 void cglucose_clean_clause_receive(CGlucose * );
 void cglucose_commit_incoming_clause(CGlucose *);
+void cglucose_commit_learnt_clause(CGlucose * wrapper);
+void cglucose_share_clause(CGlucose *, int lit );
 //int cglucose_get_add_conflicts_size(CGlucose * wrapper);
 //int cglucose_get_conflicts_at(CGlucose * wrapper, int pos);
 //int cglucose_get_n_tmp_send(CGlucose * wrapper);

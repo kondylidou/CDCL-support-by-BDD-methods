@@ -34,6 +34,8 @@ fn generate_bindings() {
         .allowlist_function("cglucose_add_to_clause_send")
         .allowlist_function("cglucose_print_incremental_stats")
         .allowlist_function("cglucose_commit_incoming_clause")
+        .allowlist_function("cglucose_commit_learnt_clause")
+        .allowlist_function("cglucose_share_clause")
         //.allowlist_function("cglucose_get_add_conflicts_size")
         //.allowlist_function("cglucose_get_conflicts_at")
         .rustfmt_bindings(true)

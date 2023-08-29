@@ -50,6 +50,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/Sort.h"
 #include "simp/SimpSolver.h"
 #include "utils/System.h"
+#include "SimpSolver.h"
 
 using namespace Glucose;
 
@@ -258,6 +259,7 @@ void    SimpSolver::copyToTmpSendClauseVec(const vec<Lit>& ps) { ps.copyTo(add_t
 void    SimpSolver::copyToTmpReceiveClauseVec(const vec<Lit>& ps) { ps.copyTo(add_tmp_receive);  }
 int     SimpSolver::getNTmpSend(){ return nTmpSend(); }
 int     SimpSolver::getTmpSendLitAt(int pos){ return toInt(add_tmp_send[pos]); }
+void    SimpSolver::addToTmpLearntClause(Lit p) { tmp_learnt.push(p); }
 //int     SimpSolver::getConflictsAt(int pos){ return toInt(add_conflicts[pos]); }
 //int     SimpSolver::getAddConflictsSize(){ return add_conflicts.size(); }
 
@@ -269,6 +271,15 @@ void SimpSolver::commitIncomingClause() {
         ca[cr].setOneWatched(false);
         attachClause(cr);
         add_tmp_receive.clear();
+    }
+
+}
+
+void SimpSolver::commitLearntClause() {
+
+    if (tmp_learnt.size() != 0) {
+        bddClauses.emplace_back(tmp_learnt);
+        tmp_learnt.clear();
     }
 
 }

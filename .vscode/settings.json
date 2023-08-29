@@ -55,7 +55,10 @@
         "thread": "cpp",
         "codecvt": "cpp",
         "iomanip": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "numbers": "cpp",
+        "semaphore": "cpp"
     },
-    "cmake.sourceDirectory": "/mnt/c/Abschlussarbeit/GitGLUCOSE/cglucose"
+    "cmake.sourceDirectory": "/mnt/c/Abschlussarbeit/GitGLUCOSE/cglucose",
+    "C_Cpp.errorSquiggles": "enabled"
 }

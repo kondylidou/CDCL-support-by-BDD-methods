@@ -53,3 +53,9 @@ extern "C" {
 extern "C" {
     pub fn cglucose_commit_incoming_clause(arg1: *mut CGlucose);
 }
+extern "C" {
+    pub fn cglucose_commit_learnt_clause(wrapper: *mut CGlucose);
+}
+extern "C" {
+    pub fn cglucose_share_clause(arg1: *mut CGlucose, lit: ::std::os::raw::c_int);
+}

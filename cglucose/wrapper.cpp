@@ -103,6 +103,19 @@ void cglucose_clean_clause_receive(CGlucose * wrapper) {
 void cglucose_commit_incoming_clause(CGlucose * wrapper) {
   ((Wrapper*) wrapper)->solver->commitIncomingClause ();
 }
+
+void cglucose_commit_learnt_clause(CGlucose * wrapper) {
+  ((Wrapper*) wrapper)->solver->commitLearntClause ();
+}
+
+void cglucose_share_clause(CGlucose * wrapper, int lit) {
+  int var = abs(lit)-1;
+  while (var >= ((Wrapper*) wrapper)->solver->nVars()){
+    ((Wrapper*) wrapper)->solver->newVar();
+  }
+
+  ((Wrapper*) wrapper)->solver->addToTmpLearntClause ( (lit > 0) ? mkLit(var) : ~mkLit(var) );
+}
 /*
 int cglucose_get_add_conflicts_size(CGlucose * wrapper) {
     int size = ((Wrapper*) wrapper)->solver->getAddConflictsSize();
