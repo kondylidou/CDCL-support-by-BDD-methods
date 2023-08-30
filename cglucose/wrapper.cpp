@@ -74,7 +74,7 @@ void cglucose_print_incremental_stats(CGlucose * wrapper) {
     ((Wrapper*) wrapper)->solver->printIncrementalStats();
 }
 
-void cglucose_clean_leanrt_clause(CGlucose * wrapper) {
+void cglucose_clean_learnt_clause(CGlucose * wrapper) {
     ((Wrapper*) wrapper)->solver->cleanTmpLearntClauseVec();
 }
 
