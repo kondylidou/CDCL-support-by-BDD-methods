@@ -250,40 +250,6 @@ bool SimpSolver::addClause_(vec<Lit>& ps)
     return true;
 }
 
-//lk
-void    SimpSolver::addToTmpSendClause(Lit p) { add_tmp_send.push(p); }
-void    SimpSolver::addToTmpReceiveClause(Lit p) { add_tmp_receive.push(p); }
-void    SimpSolver::cleanTmpSendClauseVec() { add_tmp_send.clear();  }
-void    SimpSolver::cleanTmpReceiveClauseVec() { add_tmp_receive.clear();  }
-void    SimpSolver::copyToTmpSendClauseVec(const vec<Lit>& ps) { ps.copyTo(add_tmp_send);  }
-void    SimpSolver::copyToTmpReceiveClauseVec(const vec<Lit>& ps) { ps.copyTo(add_tmp_receive);  }
-int     SimpSolver::getNTmpSend(){ return nTmpSend(); }
-int     SimpSolver::getTmpSendLitAt(int pos){ return toInt(add_tmp_send[pos]); }
-void    SimpSolver::addToTmpLearntClause(Lit p) { tmp_learnt.push(p); }
-//int     SimpSolver::getConflictsAt(int pos){ return toInt(add_conflicts[pos]); }
-//int     SimpSolver::getAddConflictsSize(){ return add_conflicts.size(); }
-
-void SimpSolver::commitIncomingClause() {
-
-    if (add_tmp_receive.size() != 0) {
-        CRef cr = ca.alloc(add_tmp_receive, true, true);
-        ca[cr].setLBD(add_tmp_receive.size());
-        ca[cr].setOneWatched(false);
-        attachClause(cr);
-        add_tmp_receive.clear();
-    }
-
-}
-
-void SimpSolver::commitLearntClause() {
-
-    if (tmp_learnt.size() != 0) {
-        bddClauses.emplace_back(tmp_learnt);
-        tmp_learnt.clear();
-    }
-
-}
-
 //gk
 bool SimpSolver::addClauseLink    (Lit p)          { add_tmp.clear(); add_tmp.push(p); return addClause_(add_tmp); }
 bool SimpSolver::addClauseLink    (Lit p, Lit q)          { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); return addClause_(add_tmp); }
@@ -302,6 +268,10 @@ int     SimpSolver::getNbLearnt(){ return nLearnts(); }
 int     SimpSolver::getVal(int i){ return toInt(model[i]); }
 //end of gk
 
+// lk
+void    SimpSolver::cleanTmpLearntClauseVec() { add_tmp_learnt.clear();  }
+void    SimpSolver::addToTmpLearntClause(Lit p) { add_tmp_learnt.push(p); }
+bool    SimpSolver::addTmpLearntClause() { return Solver::addLearntClause(add_tmp_learnt); }
 
 void SimpSolver::removeClause(CRef cr,bool inPurgatory)
 {

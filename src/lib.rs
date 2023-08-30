@@ -56,8 +56,9 @@ use bindings::cglucose_set_random_seed;
 use bindings::cglucose_solve;
 use bindings::cglucose_solver_nodes;
 use bindings::cglucose_val;
+use bindings::cglucose_add_to_learnt_clause;
+use bindings::cglucose_clean_learnt_clause;
 use bindings::cglucose_commit_learnt_clause;
-use bindings::cglucose_share_clause;
 use bindings::CGlucose;
 
 pub fn init_glucose_solver() -> *mut CGlucose {
@@ -171,67 +172,19 @@ pub fn run_glucose_parallel(
     ret
 }
 
-pub fn add_incoming_clause_to_clauses_vec(s: *mut CGlucose, given: Vec<i32>) {
+pub fn get_glucose_val(s: *mut CGlucose, i: i32) -> i32 {
+    unsafe { cglucose_val(s, (i - 1) as i32) }
+}
+
+pub fn share_clause_to_glucose_solver(s: *mut CGlucose, learnt: Vec<i32>) {
     unsafe {
-        for i in given {
-            cglucose_share_clause(s, i as i32);
+        cglucose_clean_learnt_clause(s);
+        for i in learnt {
+            cglucose_add_to_learnt_clause(s, i);
         }
         cglucose_commit_learnt_clause(s);
     }
 }
-
-pub fn get_glucose_val(s: *mut CGlucose, i: i32) -> i32 {
-    unsafe { cglucose_val(s, (i - 1) as i32) }
-}
-/*
-pub fn get_exported_clause_size(s : *mut CGlucose) -> i32 {
-    return unsafe {cglucose_get_n_tmp_send(s)}
-}
-
-pub fn get_exported_lit_at(s : *mut CGlucose, pos: i32) -> i32 {
-    return unsafe {cglucose_get_tmp_send_lit_at(s, pos)}
-}
-
-pub fn get_exported_clause_from_glucose(s : *mut CGlucose) -> Option<Vec<i32>> {
-    let size = get_exported_clause_size(s);
-    if size == 0 {
-        None
-    } else {
-        let mut exported_clause = Vec::new();
-
-        let mut pos = 0;
-        while pos < size {
-            let lit = get_exported_lit_at(s, pos);
-            exported_clause.push(lit);
-            pos += 1;
-        }
-        unsafe { cglucose_clean_clause_send(s); }
-        Some(exported_clause)
-    }
-}*/
-
-/*
-pub fn get_conflicts_vec_size(s : *mut CGlucose) -> i32 {
-    return unsafe {cglucose_get_add_conflicts_size(s)}
-}
-
-pub fn get_conflicts_at(s : *mut CGlucose, pos: i32) -> i32 {
-    return unsafe {cglucose_get_conflicts_at(s, pos)}
-}
-
-pub fn get_conflicts_from_glucose(s : *mut CGlucose) -> Vec<i32> {
-    let size = get_conflicts_vec_size(s);
-    let mut conflicts = Vec::new();
-
-    let mut pos = 0;
-    while pos < size {
-        let conflict = get_conflicts_at(s, pos);
-        conflicts.push(conflict);
-        pos += 1;
-    }
-    conflicts
-}
-*/
 
 pub fn parse_dimacs_and_add_clause_to_glucose(path: String, solver: *mut CGlucose) -> usize {
     let input = File::open(path).unwrap();

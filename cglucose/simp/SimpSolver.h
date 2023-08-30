@@ -88,24 +88,6 @@ class SimpSolver : public Solver {
     virtual bool    addClause_(      vec<Lit>& ps);
     bool    substitute(Var v, Lit x);  // Replace all occurences of v with x (may cause a contradiction).
 
-    //lk
-    void    addToTmpSendClause(Lit p);
-    void    addToTmpReceiveClause(Lit p);
-    void    cleanTmpSendClauseVec();
-    void    cleanTmpReceiveClauseVec();
-    void    copyToTmpSendClauseVec(const vec<Lit>& ps);
-    void    copyToTmpReceiveClauseVec(const vec<Lit>& ps);
-    int     getNTmpSend();
-    int     getTmpSendLitAt(int pos);
-    void    determineClauseVecCap(int size);
-    void    addToTmpLearntClause(Lit p);
-    //int     getConflictsAt(int pos);
-    //int     getAddConflictsSize();
-
-    void    commitIncomingClause();
-
-    void    commitLearntClause();
-
     //gk
     bool    addClauseLink (Lit p);        // Add a binary clause to the solver.
     bool    addClauseLink (Lit p, Lit q);        // Add a binary clause to the solver.
@@ -119,6 +101,11 @@ class SimpSolver : public Solver {
     void    addToAssumptionsVec(Lit p);
     int     getNbLearnt();
     int     getVal(int i);
+
+    // lk
+    void    cleanTmpLearntClauseVec();
+    void    addToTmpLearntClause(Lit p);
+    bool    addTmpLearntClause();
 
     // Variable mode:
     // 
@@ -229,7 +216,7 @@ class SimpSolver : public Solver {
     bool          eliminateVar             (Var v);
     void          extendModel              ();
 
-    void          removeClause             (CRef cr,bool inPurgatory=false);
+    void removeClause(CRef cr, bool inPurgatory = false);
     bool          strengthenClause         (CRef cr, Lit l);
     void          cleanUpClauses           ();
     bool          implied                  (const vec<Lit>& c);

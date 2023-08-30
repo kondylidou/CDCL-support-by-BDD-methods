@@ -1298,10 +1298,6 @@ lbool Solver::search(int nof_conflicts) {
             conf.emplace_back(std::make_tuple(conflicts,cpuTime()));
 
             conflictC++;
-            //if (conflictC < tmp_conflict) {
-            //    add_conflicts.push(tmp_conflict);
-            //}
-            //tmp_conflict = conflictC;
             conflictsRestarts++;
            if (conflicts % 5000 == 0 && var_decay < max_var_decay)
                 var_decay += 0.01;
@@ -1436,9 +1432,27 @@ lbool Solver::search(int nof_conflicts) {
     }
 }
 
+// lk
+
+bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
+    if (learnt_clause.size() == 0)
+        return false;
+    else if (learnt_clause.size() == 1) {
+        nbUn++;
+        uncheckedEnqueue(learnt_clause[0]);
+        return true;
+    } else {
+        CRef cr = ca.alloc(learnt_clause, true);
+        bdd_clauses.push(cr);
+    }
+
+    return true;
+}
+
 /************************************************************************************/
 /****************************Danail**************************************************/
 /************************************************************************************/
+
 
 //Adds all necessary to the clause, so we can add it to the learnts and add it to the solver
 void Solver::addLearntClauseFromBDD(CRef c){
@@ -1743,20 +1757,11 @@ bool Solver::parallelImportClauses() {
     return false;
 }
 
-// add the first and only literal of the learnt clause to the tmp_send
-// vector to be able to export it to the other core solver
 void Solver::parallelExportUnaryClause(Lit p) {
-    //cleanTmpSendClauseVec();
-    //addToTmpSendClause(p);
-}
-void Solver::parallelExportClauseDuringSearch(Clause &c) {
 }
 
-/*
-void Solver::parallelExportLearntClauseDuringSearch(vec<Lit> &learnt_clause) {
-    //cleanTmpSendClauseVec();
-    //copyToTmpSendClauseVec(learnt_clause);
-}*/
+void Solver::parallelExportClauseDuringSearch(Clause &c) {
+}
 
 bool Solver::parallelJobIsFinished() {
     // Parallel: another job has finished let's quit

@@ -39,23 +39,11 @@ extern "C" {
     pub fn cglucose_print_incremental_stats(arg1: *mut CGlucose);
 }
 extern "C" {
-    pub fn cglucose_add_to_clause_send(arg1: *mut CGlucose, lit: ::std::os::raw::c_int);
+    pub fn cglucose_clean_learnt_clause(arg1: *mut CGlucose);
 }
 extern "C" {
-    pub fn cglucose_add_to_clause_receive(arg1: *mut CGlucose, lit: ::std::os::raw::c_int);
+    pub fn cglucose_add_to_learnt_clause(wrapper: *mut CGlucose, lit: ::std::os::raw::c_int);
 }
 extern "C" {
-    pub fn cglucose_clean_clause_send(arg1: *mut CGlucose);
-}
-extern "C" {
-    pub fn cglucose_clean_clause_receive(arg1: *mut CGlucose);
-}
-extern "C" {
-    pub fn cglucose_commit_incoming_clause(arg1: *mut CGlucose);
-}
-extern "C" {
-    pub fn cglucose_commit_learnt_clause(wrapper: *mut CGlucose);
-}
-extern "C" {
-    pub fn cglucose_share_clause(arg1: *mut CGlucose, lit: ::std::os::raw::c_int);
+    pub fn cglucose_commit_learnt_clause(arg1: *mut CGlucose);
 }

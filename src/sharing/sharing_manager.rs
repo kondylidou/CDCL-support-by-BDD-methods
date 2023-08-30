@@ -9,7 +9,7 @@
 // since it allows a simpler and more efficient implementation of clause sharing.
 
 use super::clause_database::ClauseDatabase;
-use crate::{add_incoming_clause_to_clauses_vec, GlucoseWrapper};
+use crate::GlucoseWrapper;
 use anyhow::{anyhow, Result};
 
 pub struct SharingManager {
@@ -57,7 +57,7 @@ impl SharingManager {
         for clause in learned_clauses {
             if let Ok(filtered_clause) = self.filter_clause(clause) {
                 println!("clause sent {:?}", filtered_clause);
-                add_incoming_clause_to_clauses_vec(solver, filtered_clause);
+                //add_incoming_clause_to_clauses_vec(solver, filtered_clause);
             }
         }
 

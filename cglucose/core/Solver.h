@@ -376,10 +376,9 @@ protected:
     vec<Lit>            analyze_toclear;
     vec<Lit>            add_tmp;
 
-    //lk
-    vec<Lit>            add_tmp_send;
-    vec<Lit>            add_tmp_receive;
-    vec<Lit>            tmp_learnt;
+    // lk
+    vec<Lit>            add_tmp_learnt;
+    vec<CRef>           bdd_clauses;        // List of received learnt clauses.
 
     //DR
     using BDDClauses = std::vector<vec<Lit>>;
@@ -390,9 +389,6 @@ protected:
 
     void addLearntClauseFromBDD(CRef);
     void iterateTroughBDDClauses();
-
-    //vec<int>          add_conflicts;
-    //int               tmp_conflict;
 
     unsigned int  MYFLAG;
 
@@ -429,7 +425,7 @@ protected:
     void     analyzeFinal     (Lit p, vec<Lit>& out_conflict);                         // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
     bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
     lbool    search           (int nof_conflicts);                                     // Search for a given number of conflicts.
-    virtual lbool    solve_           (bool do_simp = true, bool turn_off_simp = false);                                                      // Main solve method (assumptions given in 'assumptions').
+    virtual lbool solve_(bool do_simp = true, bool turn_off_simp = false);                     // Main solve method (assumptions given in 'assumptions').
     virtual void     reduceDB         ();                                                      // Reduce the set of learnt clauses.
     void     removeSatisfied  (vec<CRef>& cs);                                         // Shrink 'cs' to contain only non-satisfied clauses.
     void     rebuildOrderHeap ();
@@ -442,8 +438,8 @@ protected:
     void     claDecayActivity ();                      // Decay all clauses with the specified factor. Implemented by increasing the 'bump' value instead.
     void     claBumpActivity  (Clause& c);             // Increase a clause with the current 'bump' value.
 
-    //lk
-    bool     getClause(vec<Lit> importedClause);
+    // lk
+    bool    addLearntClause(vec<Lit> &learnt_clause);
 
     //TimeControl
     void timeController(int timeframe);
@@ -550,7 +546,6 @@ inline lbool    Solver::modelValue    (Lit p) const   { return model[var(p)] ^ s
 inline int      Solver::nAssigns      ()      const   { return trail.size(); }
 inline int      Solver::nClauses      ()      const   { return clauses.size(); }
 inline int      Solver::nLearnts      ()      const   { return learnts.size(); }
-inline int      Solver::nTmpSend      ()      const   { return add_tmp_send.size(); }
 inline int      Solver::nVars         ()      const   { return vardata.size(); }
 inline int      Solver::nFreeVars     ()      const   { return (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]); }
 inline void     Solver::setPolarity   (Var v, bool b) { polarity[v] = b; }

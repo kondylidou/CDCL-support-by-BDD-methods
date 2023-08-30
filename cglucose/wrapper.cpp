@@ -74,68 +74,17 @@ void cglucose_print_incremental_stats(CGlucose * wrapper) {
     ((Wrapper*) wrapper)->solver->printIncrementalStats();
 }
 
-void cglucose_add_to_clause_send (CGlucose * wrapper, int lit) {
+void cglucose_clean_leanrt_clause(CGlucose * wrapper) {
+    ((Wrapper*) wrapper)->solver->cleanTmpLearntClauseVec();
+}
+
+void cglucose_add_to_learnt_clause (CGlucose * wrapper, int lit) {
   int var = abs(lit)-1;
-  while (var >= ((Wrapper*) wrapper)->solver->nVars()){
-    ((Wrapper*) wrapper)->solver->newVar();
-  }
-
-  ((Wrapper*) wrapper)->solver->addToTmpSendClause ( (lit > 0) ? mkLit(var) : ~mkLit(var) );
-}
-
-void cglucose_add_to_clause_receive (CGlucose * wrapper, int lit) {
-  int var = abs(lit)-1;
-  while (var >= ((Wrapper*) wrapper)->solver->nVars()){
-    ((Wrapper*) wrapper)->solver->newVar();
-  }
-
-  ((Wrapper*) wrapper)->solver->addToTmpReceiveClause ( (lit > 0) ? mkLit(var) : ~mkLit(var) );
-}
-
-void cglucose_clean_clause_send(CGlucose * wrapper) {
-    ((Wrapper*) wrapper)->solver->cleanTmpSendClauseVec();
-}
-
-void cglucose_clean_clause_receive(CGlucose * wrapper) {
-    ((Wrapper*) wrapper)->solver->cleanTmpReceiveClauseVec();
-}
-
-void cglucose_commit_incoming_clause(CGlucose * wrapper) {
-  ((Wrapper*) wrapper)->solver->commitIncomingClause ();
+  ((Wrapper*) wrapper)->solver->addToTmpLearntClause ( (lit > 0) ? mkLit(var) : ~mkLit(var) );
 }
 
 void cglucose_commit_learnt_clause(CGlucose * wrapper) {
-  ((Wrapper*) wrapper)->solver->commitLearntClause ();
+    bool ret = ((Wrapper*) wrapper)->solver->addTmpLearntClause ();
 }
-
-void cglucose_share_clause(CGlucose * wrapper, int lit) {
-  int var = abs(lit)-1;
-  while (var >= ((Wrapper*) wrapper)->solver->nVars()){
-    ((Wrapper*) wrapper)->solver->newVar();
-  }
-
-  ((Wrapper*) wrapper)->solver->addToTmpLearntClause ( (lit > 0) ? mkLit(var) : ~mkLit(var) );
-}
-/*
-int cglucose_get_add_conflicts_size(CGlucose * wrapper) {
-    int size = ((Wrapper*) wrapper)->solver->getAddConflictsSize();
-    return size;
-}
-
-int cglucose_get_conflicts_at(CGlucose * wrapper, int pos) {
-    int conflict = ((Wrapper*) wrapper)->solver->getConflictsAt(pos);
-    return conflict;
-}
-
-int cglucose_get_n_tmp_send(CGlucose * wrapper) {
-    //printf("size: %10d", ((Wrapper*) wrapper)->solver->getNTmpSend());
-    int size = ((Wrapper*) wrapper)->solver->getNTmpSend();
-    return size;
-}
-
-int cglucose_get_tmp_send_lit_at(CGlucose * wrapper, int pos) {
-    int lit = ((Wrapper*) wrapper)->solver->getTmpSendLitAt(pos);
-    return lit;
-}*/
 
 }
