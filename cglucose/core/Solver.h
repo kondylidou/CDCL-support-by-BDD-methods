@@ -387,7 +387,7 @@ protected:
     using BDDRefs = std::vector<CRef>;
     BDDRefs refs;
 
-    void addLearntClauseFromBDD(CRef);
+    void addLearntClauseFromBDD(CRef&);
     void iterateTroughBDDClauses();
 
     unsigned int  MYFLAG;
