@@ -1455,7 +1455,7 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
 
 
 //Adds all necessary to the clause, so we can add it to the learnts and add it to the solver
-void Solver::addLearntClauseFromBDD(CRef c){
+void Solver::addLearntClauseFromBDD(CRef& c){
     Clause& clause = ca[c];
     clause.setLBD(3);
     clause.setCanBeDel(false); //Not sure if thats right 
@@ -1464,20 +1464,20 @@ void Solver::addLearntClauseFromBDD(CRef c){
 
     learnts.push(c);
     attachClause(c);
-    lastLearntClause = c; // Use in multithread (to hard to put inside ParallelSolver)
     claBumpActivity(clause);
 }
 
 //Iterates trough the bddClauses Vector of vectors and performs the action to add the lit
 //to the learnts
 void Solver::iterateTroughBDDClauses(){
-    for (const auto& elem : bddClauses){
-        //Create Cref from Vec<Lit>
-        CRef ref =  ca.alloc(elem, true);
-        //Safe the ref if we need it later
-        refs.emplace_back(ref);
-        addLearntClauseFromBDD(ref);
-        uncheckedEnqueue(elem[0], ref);
+    int learntClausesSize = bdd_clauses.size();
+
+    for(int i = 0; i < learntClausesSize; i++){
+        CRef& currentRef = bdd_clauses[i];
+        addLearntClauseFromBDD(currentRef);
+        Clause& clause = ca[bdd_clauses[i]];
+        Lit& p = clause[0];
+        uncheckedEnqueue(p, currentRef);
     }
 }
 
