@@ -110,26 +110,6 @@ impl Expr {
             Not(inner) => inner.to_bdd(variables, ordering).negate(),
         }
     }
-
-    /*
-    // This method helps the process of bucket elimination.
-    // It finds the the highest order variable in the clause
-    // to be able to sort it afterwards in the correct bucket
-    // indexing this variable.
-    pub fn find_highest_order(
-        &self,
-        ordering: &std::collections::HashMap<i32, usize>,
-    ) -> (bool, usize) {
-        let (mut acc_pol, mut acc_idx) = (false, 0);
-        for (pol, var) in self.to_vars_with_polarities() {
-            let order = *ordering.get(&var).unwrap();
-            if order > acc_idx {
-                acc_idx = order;
-                acc_pol = pol;
-            }
-        }
-        (acc_pol, acc_idx)
-    }*/
 }
 
 impl fmt::Display for Expr {
@@ -199,6 +179,19 @@ impl Clause {
                 false
             }
         })
+    }
+
+    // This method helps the process of bucket elimination.
+    // It finds the the highest order variable in the clause
+    // to be able to sort it afterwards in the correct bucket
+    // indexing this variable.
+    // Method to get the highest variable index within the bucket
+    pub fn get_highest_scored_var(&self, ordering: &std::collections::HashMap<i32, usize>) -> Option<i32> {
+        self
+        .literals
+        .iter()
+        .map(|lit| lit.get_var_name())
+        .max_by_key(|var| ordering.get(var).unwrap())
     }
 
     pub fn to_bdd(
