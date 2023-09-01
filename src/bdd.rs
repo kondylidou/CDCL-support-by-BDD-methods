@@ -539,7 +539,7 @@ impl Bdd {
     }
 
     // Calculate the score for the current variable order using the NEC heuristic
-    fn calculate_nec_score(&self, ordering: &HashMap<i32, usize>) -> f64 {
+    pub fn calculate_nec_score(&self, ordering: &HashMap<i32, usize>) -> f64 {
         let mut nec_score = 0.0;
         let mut visited = HashSet::new();
 
@@ -555,47 +555,10 @@ impl Bdd {
         nec_score
     }
 
-    /// Reorder the BDD nodes based on the given BddVarOrdering
-
-    /// Reordering variables in a Binary Decision Diagram (BDD) doesn't inherently make the BDD smaller in terms of the number of nodes or its overall size.
-    /// Instead, the primary goal of variable reordering is to potentially improve the performance and efficiency of BDD operations,
-    /// such as BDD minimization, traversal, and manipulation.
-    fn reorder_variables(&mut self, ordering: &HashMap<i32, usize>) {
-        self.clear_cache();
-        let mut nodes_map: HashMap<BddPointer, BddPointer> = HashMap::new();
-        let mut sorted_nodes: Vec<_> = self.nodes.iter().enumerate().skip(2).collect();
-
-        // Sort nodes based on the new variable order
-        sorted_nodes.sort_by(|(_, node1), (_, node2)| {
-            let var1_index = ordering.get(&node1.var.name).unwrap();
-            let var2_index = ordering.get(&node2.var.name).unwrap();
-            var2_index.cmp(var1_index)
-        });
-
-        // Update the BDD nodes' pointers based on the new mapping
-        let mut new_nodes = Vec::with_capacity(self.nodes.len());
-        new_nodes.push(BddNode::mk_zero(BddVar { name: i32::MAX }));
-        new_nodes.push(BddNode::mk_one(BddVar { name: i32::MAX }));
-
-        for (new_index, (old_index, &node)) in sorted_nodes.iter().enumerate() {
-            let old_pointer = BddPointer::new(*old_index);
-            let new_pointer = BddPointer::new(new_index + 2); // because we skipped the terminals
-
-            let new_low = self.low_node_ptr(new_pointer);
-            let new_high = self.high_node_ptr(new_pointer);
-            let new_node = BddNode::mk_node(node.var, new_low, new_high);
-
-            new_nodes.push(new_node);
-            nodes_map.insert(old_pointer, new_pointer);
-        }
-        // Update the BDD nodes with the new ordering
-        self.nodes = new_nodes;
-    }
-
-    // Perform sifting variable reordering using the NEC scoring metric
-    fn sift_variables_nec(&mut self, ordering: &mut HashMap<i32, usize>) {
+     // Perform sifting variable reordering using the NEC scoring metric
+     fn sift_variables_nec(&mut self, ordering: &mut HashMap<i32, usize>, variables: &Vec<BddVar>) {
         // Calculate NEC current score
-        let mut current_score = self.calculate_nec_score(ordering);
+        let mut current_score = self.calculate_nec_score(&ordering);
 
         // Create a Vec of keys for iteration
         let keys: Vec<i32> = ordering
@@ -621,11 +584,56 @@ impl Bdd {
                     // Update the original ordering with the modified new_ordering
                     ordering.insert(var_i, *ordering.get(&var_j).unwrap());
                     ordering.insert(var_j, *ordering.get(&var_i).unwrap());
-                    self.reorder_variables(ordering); // Reorder the BDD nodes
+                    self.partial_reorder_bdd(&variables, &ordering); // Reorder the BDD nodes
                 }
             }
         }
     }
+
+
+    /// Reorder the BDD nodes based on the given BddVarOrdering
+
+    /// Reordering variables in a Binary Decision Diagram (BDD) doesn't inherently make the BDD smaller in terms of the number of nodes or its overall size.
+    /// Instead, the primary goal of variable reordering is to potentially improve the performance and efficiency of BDD operations,
+    /// such as BDD minimization, traversal, and manipulation.
+    pub fn partial_reorder_bdd(&mut self, affected_vars: &Vec<BddVar>, new_ordering: &HashMap<i32, usize>) {
+        self.clear_cache();
+        let mut nodes_map: HashMap<BddPointer, BddPointer> = HashMap::new();
+        let mut sorted_nodes: Vec<_> = self.nodes.iter().enumerate().skip(2).collect();
+
+        // Sort nodes based on the new variable order
+        sorted_nodes.sort_by(|(_, node1), (_, node2)| {
+            let var1_index = new_ordering.get(&node1.var.name).unwrap();
+            let var2_index = new_ordering.get(&node2.var.name).unwrap();
+            var2_index.cmp(var1_index)
+        });
+
+        // Update the BDD nodes' pointers based on the new mapping
+        let mut new_nodes = Vec::with_capacity(self.nodes.len());
+        new_nodes.push(BddNode::mk_zero(BddVar { name: i32::MAX }));
+        new_nodes.push(BddNode::mk_one(BddVar { name: i32::MAX }));
+
+        for (new_index, (old_index, &node)) in sorted_nodes.iter().enumerate() {
+            let old_pointer = BddPointer::new(*old_index);
+            if affected_vars.contains(&self.var_of_ptr(old_pointer)) {
+                let new_pointer = BddPointer::new(new_index + 2); // because we skipped the terminals
+
+                let new_low = self.low_node_ptr(new_pointer);
+                let new_high = self.high_node_ptr(new_pointer);
+                let new_node = BddNode::mk_node(node.var, new_low, new_high);
+
+                new_nodes.push(new_node);
+                nodes_map.insert(old_pointer, new_pointer);
+            } else {
+                new_nodes.push(node);
+                nodes_map.insert(old_pointer, old_pointer);
+            }
+        }
+        // Update the BDD nodes with the new ordering
+        self.nodes = new_nodes;
+    }
+
+    
 
     /*
     /// Randomly choose clauses from the set of clauses and check if the found assignment satisfies them.
@@ -688,6 +696,7 @@ impl PartialEq for Bdd {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     fn create_sample_bdd() -> Bdd {
@@ -748,7 +757,9 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        bdd.reorder_variables(&mut ordering);
+        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+
+        bdd.partial_reorder_bdd(&variables, &mut ordering);
 
         // Assert the correct reordering has occurred
         let var_order = bdd
@@ -768,7 +779,9 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        bdd.reorder_variables(&mut ordering);
+        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+
+        bdd.partial_reorder_bdd(&variables, &mut ordering);
 
         // Assert the correct reordering has occurred
         let var_order = bdd
@@ -788,7 +801,9 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        bdd.sift_variables_nec(&mut ordering);
+        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+
+        bdd.sift_variables_nec(&mut ordering, &variables);
 
         // Assert the correct reordering has occurred
         let var_order = bdd
@@ -808,7 +823,9 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        bdd.sift_variables_nec(&mut ordering);
+        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+
+        bdd.sift_variables_nec(&mut ordering, &variables);
 
         // Assert the correct reordering has occurred
         let var_order = bdd
@@ -830,7 +847,10 @@ mod tests {
 
         println!("Original BDD: {:?}", bdd);
 
-        bdd.reorder_variables(&ordering);
+        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+
+        bdd.partial_reorder_bdd(&variables, &mut ordering);
+
 
         println!("Variable Ordering: {:?}", ordering);
         println!("Reordered BDD: {:?}", bdd);
