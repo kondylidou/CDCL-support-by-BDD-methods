@@ -86,26 +86,6 @@ impl BddVarOrdering {
         affected_variables
     }
 
-    
-    // Method to reorder clauses into new buckets based on the new variable order
-    fn reorder_clauses_into_new_buckets(&mut self, buckets: &Buckets) -> Buckets{
-        let mut new_buckets: Vec<Bucket> = Vec::new();
-
-        for original_bucket in buckets {
-            for clause in &original_bucket.clauses {
-                let highest_scored_var = clause.get_highest_scored_var(&self.ordering).unwrap();
-                if let Some(new_bucket) = new_buckets.get_mut(*self.ordering.get(&highest_scored_var).unwrap()) {
-                    new_bucket.clauses.push(clause.clone());
-                } else {
-                    let new_bucket = Bucket { clauses: vec![clause.clone()], index: highest_scored_var };
-                    new_buckets.push(new_bucket);
-                }
-            }
-        }
-
-        new_buckets
-    }
-
     // Function to group clauses into buckets based on variable scores
     fn group_clauses_into_buckets_variable_scores(&self) -> Buckets {
         let mut buckets: HashMap<i32, Bucket> = HashMap::new();
@@ -162,50 +142,49 @@ impl BddVarOrdering {
             .par_sort_by_key(|var| Reverse(variable_scores.get(&var.name).unwrap()));
     }
 
-    fn group_clauses_into_buckets_interactions(&self) -> Vec<Bucket> {
-        let variable_interactions = self.find_interacting_variables();
-        let mut buckets: Vec<Bucket> = Vec::new();
+     // Method to group clauses into buckets based on interaction-based ordering
+     fn group_clauses_into_buckets_interactions(&self) -> HashMap<i32, Bucket> {
+        // Calculate interaction scores for each variable
+        let variable_interactions: HashMap<i32, HashSet<i32>> = self.find_interacting_variables();
 
+        let mut variable_scores: HashMap<i32, usize> = HashMap::new();
+
+        for (var, interactions) in &variable_interactions {
+            variable_scores.insert(*var, interactions.len());
+        }
+
+        // Sort variables by interaction scores
+        let mut ordered_variables: Vec<BddVar> = self.variables.clone();
+        ordered_variables.par_sort_by_key(|var| Reverse(*variable_scores.get(&var.name).unwrap_or(&0)));
+
+        // Initialize buckets
+        let mut buckets: HashMap<i32, Bucket> = HashMap::new();
+
+        // Iterate through clauses and assign them to buckets
         for clause in &self.expressions {
             let mut placed = false;
 
-            // Locate or create a bucket based on the variable with the most interactions
-            if let Some(var) = clause.get_highest_scored_var(&self.ordering) {
-
-                for bucket in buckets.iter_mut() {
-                    if variable_interactions[&var].iter().any(|&v| v == bucket.index) {
-                        bucket.clauses.push(clause.clone());
-               
-                        placed = true;
-                        break;
-                    }
-                }
-
-            /* 
-            for (bucket_idx, bucket) in buckets.iter_mut().enumerate() {
-                if clause.literals.iter().any(|expr| {
-                    variable_interactions[&expr.get_var_name()]
-                        .is_subset(&variable_buckets[&bucket_idx])
-                }) {
+            // Iterate through ordered variables and find the first variable
+            // that appears in the clause to determine the bucket
+            for var in &ordered_variables {
+                if clause.literals.iter().any(|expr| expr.get_var_name().eq(&var.name)) {
+                    let bucket = buckets.entry(var.name).or_insert_with(Bucket{ clauses: todo!(), index: todo!() });
                     bucket.clauses.push(clause.clone());
                     placed = true;
                     break;
                 }
             }
-            */
 
-                if !placed {
-                    buckets.push(Bucket {
-                        clauses: vec![clause.clone()],
-                        index: var,
-                    });
-                }
+            // If the clause couldn't be placed in any bucket, add it to a default bucket
+            if !placed {
+                let bucket = buckets.entry(0).or_insert_with(Vec::new); // 0 represents the default bucket
+                bucket.push(clause.clone());
             }
         }
 
         buckets
     }
-
+    
     pub fn build(&mut self, sharing_manager: &mut SharingManager) -> Result<()> {
         // Bucket Clustering
         let buckets = self.group_clauses_into_buckets_variable_scores();
@@ -221,7 +200,7 @@ impl BddVarOrdering {
                 let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
                 bdd = bdd.and(&temp_bdd, &self.ordering);
 
-                /* 
+                
                 if bdd.nodes.len() > 20 {
                     self.create_interaction_based_variable_order();
                     let affected_vars = self.update_ordering_based_on_new_variable_order();
@@ -229,35 +208,32 @@ impl BddVarOrdering {
                     println!("reordered");
                     reordering = true;
                     break;
-                }*/
+                }
                 
                 n += 1;
             }
-            /*
+            
             if reordering {
                 break;
-            } */
+            } 
             let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
             // TODO handle unwrap
             sharing_manager.send_learned_clauses(temp_learnts).unwrap();
         }
-        /*
+        
         if reordering {
             println!("creating");
             //self.reorder_clauses_into_new_buckets(&buckets);
-            let buckets = self.group_clauses_into_buckets_interactions();
-            let clauses = Vec::new();
-            for bucket in buckets {
+            let new_buckets = self.group_clauses_into_buckets_interactions();
+            let mut new_clauses_len = 0;
+            for (idx,bucket) in new_buckets {
                 println!("{:?}", bucket.clauses.len());
-                for clause in bucket.clauses {
-                    if clauses.contains(&clause) {
-                        println!("CONTAINED!");
-                    }
-                }
+                new_clauses_len += bucket.clauses.len();
             }
+            assert_eq!(new_clauses_len, self.expressions.len());
             
             println!("new buckets created");
-        }*/
+        }
         Ok(())
     }
 

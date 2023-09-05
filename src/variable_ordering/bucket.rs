@@ -33,6 +33,7 @@ pub struct Bucket {
 }
 
 impl Bucket {
+
     pub fn vars(&self) -> HashSet<i32> {
         let mut vars = HashSet::new();
 
