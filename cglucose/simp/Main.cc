@@ -63,8 +63,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 
 #include "CallPythonFile.h"
-#include <Python.h>
-#include "Python.h"
+#include <stdio.h>
+#include "rust_lib.h"
+
 #include <chrono>
 
 using namespace std;
@@ -73,8 +74,6 @@ using namespace Glucose;
 //=================================================================================================
 
 static const char* _certified = "CORE -- CERTIFIED UNSAT";
-
-extern void init();  // Declare the Rust function
 
 void printStats(Solver& solver)
 {
