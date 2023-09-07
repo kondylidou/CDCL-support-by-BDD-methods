@@ -164,7 +164,7 @@ impl Bdd {
     }
 
     /// The number of nodes in a Bdd.
-    fn size(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.nodes.len()
     }
 

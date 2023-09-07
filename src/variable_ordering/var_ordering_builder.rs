@@ -84,21 +84,16 @@ impl BddVarOrderingBuilder {
 mod tests {
 
     use crate::{
-        init_glucose_solver, parser, sharing::sharing_manager::SharingManager,
-        variable_ordering::var_ordering::BddVarOrdering, GlucoseWrapper,
+        parser,
+        variable_ordering::var_ordering::BddVarOrdering
     };
 
     #[test]
     fn variable_ordering() {
         let dimacs = parser::parse_dimacs_cnf_file("tests/test3.cnf").unwrap();
-        // build the solver
-        let solver = init_glucose_solver();
-        let glucose = GlucoseWrapper::new(solver);
-        // build the sharing manager
-        let mut sharing_manager = SharingManager::new(glucose);
+        
         // build the variable ordering
         let var_ordering = BddVarOrdering::new(dimacs);
-        println!("{:?}", var_ordering.ordering);
 
         let mut var_index_mapping: std::collections::HashMap<i32, usize> =
             std::collections::HashMap::new();
@@ -108,9 +103,6 @@ mod tests {
         var_index_mapping.insert(4, 3);
         var_index_mapping.insert(5, 4);
         var_index_mapping.insert(i32::MAX, 5);
-
-        let bdd = var_ordering.build_bdd(&mut sharing_manager);
-        println!("{:?}", bdd);
 
         assert_eq!(var_index_mapping, var_ordering.ordering);
     }

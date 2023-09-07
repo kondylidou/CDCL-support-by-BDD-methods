@@ -74,6 +74,8 @@ using namespace Glucose;
 
 static const char* _certified = "CORE -- CERTIFIED UNSAT";
 
+extern void init();  // Declare the Rust function
+
 void printStats(Solver& solver)
 {
     double cpu_time = cpuTime();
@@ -228,6 +230,11 @@ but for testing purpose it is made that simple. Future improvement will be done.
             for (int i = 0; i < size; ++i) {
             SimpSolver S = SimpSolver();
             double initial_time = cpuTime();    
+
+            printf("Calling Rust function from C...\n");
+            init();  // Call the Rust function
+            printf("Returned from Rust function\n");
+            return 0;
 
             S.parsing = 1;
             S.verbosity = verb;

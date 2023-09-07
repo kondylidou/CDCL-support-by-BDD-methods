@@ -30,3 +30,6 @@ features = ["attributes", "tokio1"]
 [features]
 default=["generate-bindings"]
 generate-bindings = []
+
+[lib]
+crate-type = ["cdylib"]

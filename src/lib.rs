@@ -7,6 +7,8 @@ mod approx;
 mod bdd;
 mod bdd_util;
 pub mod parser;
+mod c_lib;
+pub use c_lib::init;
 
 mod statistics {
     pub mod stats;
