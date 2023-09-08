@@ -64,7 +64,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include "CallPythonFile.h"
 #include <stdio.h>
-#include "rust_lib.h"
+#include <iostream>
+#include <dlfcn.h> // For dynamic library loading on Unix-based systems
 
 #include <chrono>
 
@@ -72,6 +73,10 @@ using namespace std;
 using namespace Glucose;
 
 //=================================================================================================
+
+extern "C" {
+    int rust_init(Solver& solver);
+}
 
 static const char* _certified = "CORE -- CERTIFIED UNSAT";
 
@@ -225,15 +230,30 @@ but for testing purpose it is made that simple. Future improvement will be done.
         int size = sizeof(filePaths) / sizeof(filePaths[0]);
         
         if(argc == 2){
+            // Load the Rust dynamic library
+            void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+
+            if (!rust_lib) {
+                std::cerr << "Failed to load the Rust library: " << dlerror() << std::endl;
+                return 1;
+            }
+
+            // Get a pointer to the Rust function
+            auto rust_init_ptr = reinterpret_cast<void(*)(Solver)>(dlsym(rust_lib, "init"));
+
+            if (!rust_init_ptr) {
+                std::cerr << "Failed to find the Rust function: " << dlerror() << std::endl;
+                return 1;
+            }         
+
             //Loop trough the files and create a new solver for each file
             for (int i = 0; i < size; ++i) {
             SimpSolver S = SimpSolver();
-            double initial_time = cpuTime();    
 
-            printf("Calling Rust function from C...\n");
-            init();  // Call the Rust function
-            printf("Returned from Rust function\n");
-            return 0;
+            // Call the Rust function
+            rust_init_ptr(S);
+
+            double initial_time = cpuTime();
 
             S.parsing = 1;
             S.verbosity = verb;
@@ -308,6 +328,11 @@ but for testing purpose it is made that simple. Future improvement will be done.
             }
             vectorToPython(lists);
             solvedInstances(instances);
+
+            // Unload the Rust library
+            dlclose(rust_lib);
+
+            //std::cout << "Result from Rust: " << result << std::endl;
         }
 
 
