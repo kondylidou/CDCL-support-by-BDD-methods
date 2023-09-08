@@ -50,7 +50,7 @@ impl BddVarOrdering {
     }
 
     // Function to group clauses into buckets based on variable scores
-    fn group_clauses_into_buckets(&self) -> Buckets {
+    pub fn group_clauses_into_buckets(&self) -> Buckets {
         let mut buckets: HashMap<i32, Bucket> = HashMap::new();
 
         for clause in &self.expressions {
