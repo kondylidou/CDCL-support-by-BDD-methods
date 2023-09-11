@@ -13,8 +13,8 @@ use crate::sharing::sharing_manager::SharingManager;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
 use rayon::slice::ParallelSliceMut;
 
-
 #[derive(Debug, Clone)]
+#[repr(C)]
 pub struct BddVarOrdering {
     pub variables: Vec<BddVar>,
     pub expressions: Vec<Clause>,

@@ -135,6 +135,7 @@ impl PartialEq for Expr {
 }
 
 #[derive(Debug, Clone, Eq)]
+#[repr(C)]
 pub struct Clause {
     pub literals: HashSet<Expr>,
 }

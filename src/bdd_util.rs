@@ -75,6 +75,7 @@ impl PartialEq for BddPointer {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct BddVar {
     pub name: i32,
 }

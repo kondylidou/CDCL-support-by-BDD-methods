@@ -8,7 +8,8 @@ mod bdd;
 mod bdd_util;
 pub mod parser;
 mod rust_lib;
-pub use rust_lib::init;
+pub use rust_lib::create_var_ordering;
+pub use rust_lib::free_var_ordering;
 
 mod statistics {
     pub mod stats;

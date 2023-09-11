@@ -63,9 +63,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 
 #include "CallPythonFile.h"
-#include <stdio.h>
 #include <iostream>
 #include <dlfcn.h> // For dynamic library loading on Unix-based systems
+#include <cstring> // For string operations
 
 #include <chrono>
 
@@ -74,8 +74,50 @@ using namespace Glucose;
 
 //=================================================================================================
 
+
+typedef struct BddVarOrdering BddVarOrdering;
+
 extern "C" {
-    int rust_init(Solver& solver);
+    BddVarOrdering* create_bdd_var_ordering(const char* input);
+    void free_bdd_var_ordering(BddVarOrdering* ptr);
+}
+
+void runRustFunction(const char* filePath) {
+    // Load the Rust dynamic library
+    void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+
+    if (!rust_lib) {
+        std::cerr << "Failed to load the Rust library: " << dlerror() << std::endl;
+        return;
+    }
+
+    // Get pointers to the Rust functions
+    auto create_bdd_var_ordering_ptr = reinterpret_cast<BddVarOrdering*(*)(const char*)>(dlsym(rust_lib, "create_var_ordering"));
+    auto free_bdd_var_ordering_ptr = reinterpret_cast<void(*)(BddVarOrdering*)>(dlsym(rust_lib, "free_var_ordering"));
+
+    if (!create_bdd_var_ordering_ptr || !free_bdd_var_ordering_ptr) {
+        std::cerr << "Failed to get function pointers from the Rust library: " << dlerror() << std::endl;
+        dlclose(rust_lib);
+        return;
+    }
+
+    // Call the Rust function to create BddVarOrdering
+    BddVarOrdering* bdd_var_ordering = create_bdd_var_ordering_ptr(filePath);
+
+    // Check if the creation was successful
+    if (!bdd_var_ordering) {
+        std::cerr << "Failed to create BddVarOrdering in Rust" << std::endl;
+        dlclose(rust_lib);
+        return;
+    }
+
+    // Use the BddVarOrdering as needed
+
+    // Free the BddVarOrdering when done
+    free_bdd_var_ordering_ptr(bdd_var_ordering);
+
+    // Unload the Rust library
+    dlclose(rust_lib);
 }
 
 static const char* _certified = "CORE -- CERTIFIED UNSAT";
@@ -230,28 +272,9 @@ but for testing purpose it is made that simple. Future improvement will be done.
         int size = sizeof(filePaths) / sizeof(filePaths[0]);
         
         if(argc == 2){
-            // Load the Rust dynamic library
-            void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
-
-            if (!rust_lib) {
-                std::cerr << "Failed to load the Rust library: " << dlerror() << std::endl;
-                return 1;
-            }
-
-            // Get a pointer to the Rust function
-            auto rust_init_ptr = reinterpret_cast<void(*)(Solver)>(dlsym(rust_lib, "init"));
-
-            if (!rust_init_ptr) {
-                std::cerr << "Failed to find the Rust function: " << dlerror() << std::endl;
-                return 1;
-            }         
-
             //Loop trough the files and create a new solver for each file
             for (int i = 0; i < size; ++i) {
             SimpSolver S = SimpSolver();
-
-            // Call the Rust function
-            rust_init_ptr(S);
 
             double initial_time = cpuTime();
 
@@ -315,6 +338,8 @@ but for testing purpose it is made that simple. Future improvement will be done.
             parse_DIMACS(in, S);
             gzclose(in);
 
+            runRustFunction(filePaths[i]);
+
             vec<Lit> dummy;
             lbool ret = S.solveLimited(dummy);
 
@@ -328,11 +353,6 @@ but for testing purpose it is made that simple. Future improvement will be done.
             }
             vectorToPython(lists);
             solvedInstances(instances);
-
-            // Unload the Rust library
-            dlclose(rust_lib);
-
-            //std::cout << "Result from Rust: " << result << std::endl;
         }
 
 
