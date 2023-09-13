@@ -1,13 +1,11 @@
 use super::bucket::Bucket;
 use anyhow::Result;
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
 
 use crate::bdd::Bdd;
 use crate::bdd_util::BddVar;
-use crate::expr::bool_expr::{Clause, Expr};
+use crate::expr::bool_expr::Clause;
 use crate::parser::Dimacs;
 use crate::sharing::sharing_manager::SharingManager;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
@@ -18,9 +16,9 @@ use rayon::slice::ParallelSliceMut;
 pub struct BddVarOrdering {
     pub variables: Vec<BddVar>,
     pub expressions: Vec<Clause>,
-    pub ordering: std::collections::HashMap<i32, usize>,
+    pub ordering: HashMap<i32, usize>,
+    pub buckets: Vec<Bucket>
 }
-type Buckets = Vec<Bucket>;
 
 impl BddVarOrdering {
     /// Create a new `BddVarOrdering` with the given named variables.
@@ -50,7 +48,7 @@ impl BddVarOrdering {
     }
 
     // Function to group clauses into buckets based on variable scores
-    pub fn group_clauses_into_buckets(&self) -> Buckets {
+    pub fn group_clauses_into_buckets(&mut self) {
         let mut buckets: HashMap<i32, Bucket> = HashMap::new();
 
         for clause in &self.expressions {
@@ -68,10 +66,10 @@ impl BddVarOrdering {
         }
 
         // Convert the HashMap values into a Vec of buckets
-        let mut result_buckets: Buckets = buckets.values().cloned().collect();
+        let mut result_buckets: Vec<Bucket> = buckets.values().cloned().collect();
         result_buckets.sort_by_key(|bucket| self.ordering.get(&bucket.index).unwrap());
 
-        result_buckets
+        self.buckets = result_buckets
     }
 
     fn find_interacting_variables(&self) -> HashMap<i32, HashSet<i32>> {
@@ -108,7 +106,7 @@ impl BddVarOrdering {
     }
 
      // Method to group clauses into buckets based on interaction-based ordering
-     fn group_clauses_into_buckets_interactions(&self, expressions: &Vec<Clause>) -> Vec<Bucket> {
+     fn group_clauses_into_buckets_interactions(&mut self, expressions: &Vec<Clause>) {
         let variable_interactions = self.find_interacting_variables();
         let mut buckets: Vec<Bucket> = Vec::new();
 
@@ -133,39 +131,35 @@ impl BddVarOrdering {
             }
         }
 
-        buckets
+        self.buckets = buckets
     }
     
-    pub fn build(&mut self, buckets: Vec<Bucket>, sharing_manager: &mut SharingManager) -> Result<()> {
-        let mut reordered = false;
+    pub fn build(&mut self, bucket: Bucket) -> Result<()> {
         let threshold = 20;
     
-       for bucket in buckets {
-            let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
-            let mut n = 1;
-            while n < bucket.clauses.len() {
-                let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
-                bdd = bdd.and(&temp_bdd, &self.ordering);
-    
-                // If the BDD is becoming too big, it means that we have reached a large bucket.
-                // At this point, we will reorder the variables based on interactions and
-                // subdivide the bucket into smaller buckets.
-                if bdd.size() > threshold {
-                    let affected_vars = self.create_interaction_based_ordering();
-                    //reordered = true;
-                    //let new_buckets = self.group_clauses_into_buckets_interactions(&bucket.clauses);
+        let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
+        let mut n = 1;
+        while n < bucket.clauses.len() {
+            let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
+            bdd = bdd.and(&temp_bdd, &self.ordering);
 
-                    //self.build(new_buckets, sharing_manager);
-                }
-    
-                n += 1;
+            // If the BDD is becoming too big, it means that we have reached a large bucket.
+            // At this point, we will reorder the variables based on interactions and
+            // subdivide the bucket into smaller buckets.
+            if bdd.size() > threshold {
+                let affected_vars = self.create_interaction_based_ordering();
+                //reordered = true;
+                let new_buckets = self.group_clauses_into_buckets_interactions(&bucket.clauses);
+
+                //self.build(new_buckets, sharing_manager);
             }
-    
-            let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
-            // TODO handle unwrap
-            sharing_manager.send_learned_clauses(temp_learnts).unwrap();
 
+            n += 1;
         }
+
+       let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
+       // TODO handle unwrap
+       //sharing_manager.send_learned_clauses(temp_learnts).unwrap();
 
         Ok(())
     }    
@@ -249,6 +243,7 @@ mod tests {
                 // ... more expressions
             ],
             ordering: HashMap::from_iter(vec![(1, 0), (2, 1), (3, 2), (4, 3), (5, 4)]),
+            buckets: Vec::new(),
         }
     }
 
@@ -312,14 +307,14 @@ mod tests {
             vars_scores: HashMap::from_iter(vec![(1,0.0), (3, 0.3), (2, 0.5), (4, 0.5), (5, 0.7)]),
             expressions,
         };
-        let var_ordering = BddVarOrdering::new(dimacs);
+        let mut var_ordering = BddVarOrdering::new(dimacs);
         // Call the function
-        let buckets = var_ordering.group_clauses_into_buckets_interactions(&var_ordering.expressions);
+        var_ordering.group_clauses_into_buckets_interactions(&var_ordering.expressions.clone());
 
         // Test assertions
-        assert_eq!(buckets.len(), 2);
-        assert_eq!(buckets[0].clauses.len(), 2);
-        assert_eq!(buckets[1].clauses.len(), 1);
+        assert_eq!(var_ordering.buckets.len(), 2);
+        assert_eq!(var_ordering.buckets[0].clauses.len(), 2);
+        assert_eq!(var_ordering.buckets[1].clauses.len(), 1);
     }
 
     #[test]
@@ -348,7 +343,9 @@ mod tests {
         );
 
         // Bucket Clustering
-        let buckets = var_ordering.group_clauses_into_buckets();
-        var_ordering.build(buckets, &mut sharing_manager);
+        var_ordering.group_clauses_into_buckets();
+        for bucket in var_ordering.buckets.clone() {
+            var_ordering.build(bucket);
+        }
     }
 }

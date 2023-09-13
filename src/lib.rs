@@ -10,6 +10,7 @@ pub mod parser;
 mod rust_lib;
 pub use rust_lib::create_var_ordering;
 pub use rust_lib::free_var_ordering;
+pub use rust_lib::process_buckets;
 
 mod statistics {
     pub mod stats;

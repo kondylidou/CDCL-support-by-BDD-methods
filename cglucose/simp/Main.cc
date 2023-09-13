@@ -76,13 +76,16 @@ using namespace Glucose;
 
 
 typedef struct BddVarOrdering BddVarOrdering;
+typedef struct BucketArray BucketArray;
 
 extern "C" {
     BddVarOrdering* create_bdd_var_ordering(const char* input);
     void free_bdd_var_ordering(BddVarOrdering* ptr);
+    void process_buckets(BddVarOrdering* ptr);
 }
 
-void runRustFunction(const char* filePath) {
+void init_rust(const char* filePath) {
+    
     // Load the Rust dynamic library
     void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
 
@@ -94,8 +97,9 @@ void runRustFunction(const char* filePath) {
     // Get pointers to the Rust functions
     auto create_bdd_var_ordering_ptr = reinterpret_cast<BddVarOrdering*(*)(const char*)>(dlsym(rust_lib, "create_var_ordering"));
     auto free_bdd_var_ordering_ptr = reinterpret_cast<void(*)(BddVarOrdering*)>(dlsym(rust_lib, "free_var_ordering"));
+    auto process_bdd_buckets = reinterpret_cast<void(*)(BddVarOrdering*)>(dlsym(rust_lib, "process_buckets"));
 
-    if (!create_bdd_var_ordering_ptr || !free_bdd_var_ordering_ptr) {
+    if (!create_bdd_var_ordering_ptr || !free_bdd_var_ordering_ptr || !process_bdd_buckets) {
         std::cerr << "Failed to get function pointers from the Rust library: " << dlerror() << std::endl;
         dlclose(rust_lib);
         return;
@@ -112,6 +116,7 @@ void runRustFunction(const char* filePath) {
     }
 
     // Use the BddVarOrdering as needed
+    process_bdd_buckets(bdd_var_ordering);
 
     // Free the BddVarOrdering when done
     free_bdd_var_ordering_ptr(bdd_var_ordering);
@@ -338,7 +343,7 @@ but for testing purpose it is made that simple. Future improvement will be done.
             parse_DIMACS(in, S);
             gzclose(in);
 
-            runRustFunction(filePaths[i]);
+            init_rust(filePaths[i]);
 
             vec<Lit> dummy;
             lbool ret = S.solveLimited(dummy);

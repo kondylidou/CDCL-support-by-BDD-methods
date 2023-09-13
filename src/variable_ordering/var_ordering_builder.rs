@@ -66,6 +66,7 @@ impl BddVarOrderingBuilder {
             variables,
             expressions: dimacs.expressions,
             ordering,
+            buckets: Vec::new(),
         }
     }
 

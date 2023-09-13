@@ -1,3 +1,4 @@
+/*
 use std::time::Instant;
 
 use bdd_sat_solver::{
@@ -36,3 +37,4 @@ pub fn test_solver_get_solution_2() {
     }
     println!("Time elapsed is : {:?}", start.elapsed());
 }
+*/

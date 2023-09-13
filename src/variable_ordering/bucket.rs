@@ -27,6 +27,7 @@ use std::collections::{HashMap, HashSet};
 */
 
 #[derive(Clone, Debug, PartialEq)]
+#[repr(C)]
 pub struct Bucket {
     pub clauses: Vec<Clause>,
     pub index: i32,
