@@ -54,6 +54,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/Solver.h"
 #include "mtl/Clone.h"
 
+typedef struct BddVarOrdering BddVarOrdering;
+
 namespace Glucose {
 
 //=================================================================================================
@@ -114,15 +116,15 @@ class SimpSolver : public Solver {
 
     // Solving:
     //
-    bool    solve       (const vec<Lit>& assumps, bool do_simp = true, bool turn_off_simp = false);
-    lbool   solveLimited(const vec<Lit>& assumps, bool do_simp = true, bool turn_off_simp = false);
-    bool    solve       (                     bool do_simp = true, bool turn_off_simp = false);
-    bool    solve       (Lit p       ,        bool do_simp = true, bool turn_off_simp = false);       
-    bool    solve       (Lit p, Lit q,        bool do_simp = true, bool turn_off_simp = false);
-    bool    solve       (Lit p, Lit q, Lit r, bool do_simp = true, bool turn_off_simp = false);
-    bool    solveLink   (                     bool do_simp = true, bool turn_off_simp = false);
-    bool    solveLink   (Lit p       ,        bool do_simp = true, bool turn_off_simp = false);
-    bool    solveWithAssumpLink (                     bool do_simp = true, bool turn_off_simp = false);
+    bool    solve       (BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps, bool do_simp = true, bool turn_off_simp = false);
+    lbool   solveLimited(BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps, bool do_simp = true, bool turn_off_simp = false);
+    bool    solve       (BddVarOrdering* bdd_var_ordering,                          bool do_simp = true, bool turn_off_simp = false);
+    bool    solve       (BddVarOrdering* bdd_var_ordering, Lit p       ,            bool do_simp = true, bool turn_off_simp = false);       
+    bool    solve       (BddVarOrdering* bdd_var_ordering, Lit p, Lit q,            bool do_simp = true, bool turn_off_simp = false);
+    bool    solve       (BddVarOrdering* bdd_var_ordering, Lit p, Lit q, Lit r,     bool do_simp = true, bool turn_off_simp = false);
+    bool    solveLink   (BddVarOrdering* bdd_var_ordering,                          bool do_simp = true, bool turn_off_simp = false);
+    bool    solveLink   (BddVarOrdering* bdd_var_ordering, Lit p       ,            bool do_simp = true, bool turn_off_simp = false);
+    bool    solveWithAssumpLink (BddVarOrdering* bdd_var_ordering,                  bool do_simp = true, bool turn_off_simp = false);
     bool    eliminate   (bool turn_off_elim = false);  // Perform variable elimination based simplification.
 
     // Memory managment:
@@ -205,7 +207,7 @@ class SimpSolver : public Solver {
 
     // Main internal methods:
     //
-    virtual lbool         solve_                   (bool do_simp = true, bool turn_off_simp = false);
+    virtual lbool         solve_                   (BddVarOrdering* bdd_var_ordering, bool do_simp = true, bool turn_off_simp = false);
     bool          asymm                    (Var v, CRef cr);
     bool          asymmVar                 (Var v);
     void          updateElimHeap           (Var v);
@@ -243,15 +245,15 @@ inline bool SimpSolver::addClause    (Lit p, Lit q)          { add_tmp.clear(); 
 inline bool SimpSolver::addClause    (Lit p, Lit q, Lit r)   { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); add_tmp.push(r); return addClause_(add_tmp); }
 inline void SimpSolver::setFrozen    (Var v, bool b) { frozen[v] = (char)b; if (use_simplification && !b) { updateElimHeap(v); } }
 
-inline bool SimpSolver::solve        (                     bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); return solve_(do_simp, turn_off_simp) == l_True; }
-inline bool SimpSolver::solve        (Lit p       ,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_(do_simp, turn_off_simp) == l_True; }
-inline bool SimpSolver::solve        (Lit p, Lit q,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_(do_simp, turn_off_simp) == l_True; }
-inline bool SimpSolver::solve        (Lit p, Lit q, Lit r, bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_(do_simp, turn_off_simp) == l_True; }
-inline bool SimpSolver::solve        (const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){ 
-    budgetOff(); assumps.copyTo(assumptions); return solve_(do_simp, turn_off_simp) == l_True; }
+inline bool SimpSolver::solve        (BddVarOrdering* bdd_var_ordering,                      bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); return solve_(bdd_var_ordering, do_simp, turn_off_simp) == l_True; }
+inline bool SimpSolver::solve        (BddVarOrdering* bdd_var_ordering, Lit p       ,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_(bdd_var_ordering ,do_simp, turn_off_simp) == l_True; }
+inline bool SimpSolver::solve        (BddVarOrdering* bdd_var_ordering, Lit p, Lit q,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_(bdd_var_ordering, do_simp, turn_off_simp) == l_True; }
+inline bool SimpSolver::solve        (BddVarOrdering* bdd_var_ordering, Lit p, Lit q, Lit r, bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_(bdd_var_ordering, do_simp, turn_off_simp) == l_True; }
+inline bool SimpSolver::solve        (BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){ 
+    budgetOff(); assumps.copyTo(assumptions); return solve_(bdd_var_ordering, do_simp, turn_off_simp) == l_True; }
 
-inline lbool SimpSolver::solveLimited (const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){ 
-    assumps.copyTo(assumptions); return solve_(do_simp, turn_off_simp); }
+inline lbool SimpSolver::solveLimited (BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){ 
+    assumps.copyTo(assumptions); return solve_(bdd_var_ordering, do_simp, turn_off_simp); }
 
 //=================================================================================================
 }

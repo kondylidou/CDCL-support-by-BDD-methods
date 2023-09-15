@@ -63,6 +63,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <tuple>
 #include <vector>
 
+typedef struct BddVarOrdering BddVarOrdering;
+typedef struct BddBuckets BddBuckets;
+typedef struct BddClauseDatabase BddClauseDatabase;
 
 namespace Glucose {
 
@@ -102,12 +105,12 @@ public:
     // Solving:
     //
     bool    simplify     ();                        // Removes already satisfied clauses.
-    bool    solve        (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions.
-    lbool   solveLimited (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions (With resource constraints).
-    bool    solve        ();                        // Search without assumptions.
-    bool    solve        (Lit p);                   // Search for a model that respects a single assumption.
-    bool    solve        (Lit p, Lit q);            // Search for a model that respects two assumptions.
-    bool    solve        (Lit p, Lit q, Lit r);     // Search for a model that respects three assumptions.
+    bool    solve        (BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions.
+    lbool   solveLimited (BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions (With resource constraints).
+    bool    solve        (BddVarOrdering* bdd_var_ordering);                        // Search without assumptions.
+    bool    solve        (BddVarOrdering* bdd_var_ordering, Lit p);                   // Search for a model that respects a single assumption.
+    bool    solve        (BddVarOrdering* bdd_var_ordering, Lit p, Lit q);            // Search for a model that respects two assumptions.
+    bool    solve        (BddVarOrdering* bdd_var_ordering, Lit p, Lit q, Lit r);     // Search for a model that respects three assumptions.
     bool    okay         () const;                  // FALSE means solver is in a conflicting state
 
        // Convenience versions of 'toDimacs()':
@@ -425,7 +428,7 @@ protected:
     void     analyzeFinal     (Lit p, vec<Lit>& out_conflict);                         // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
     bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
     lbool    search           (int nof_conflicts);                                     // Search for a given number of conflicts.
-    virtual lbool solve_(bool do_simp = true, bool turn_off_simp = false);                     // Main solve method (assumptions given in 'assumptions').
+    virtual lbool solve_(BddVarOrdering* bdd_var_ordering, bool do_simp = true, bool turn_off_simp = false);                     // Main solve method (assumptions given in 'assumptions').
     virtual void     reduceDB         ();                                                      // Reduce the set of learnt clauses.
     void     removeSatisfied  (vec<CRef>& cs);                                         // Shrink 'cs' to contain only non-satisfied clauses.
     void     rebuildOrderHeap ();
@@ -570,12 +573,12 @@ inline bool     Solver::withinBudget() const {
 // FIXME: after the introduction of asynchronous interrruptions the solve-versions that return a
 // pure bool do not give a safe interface. Either interrupts must be possible to turn off here, or
 // all calls to solve must return an 'lbool'. I'm not yet sure which I prefer.
-inline bool     Solver::solve         ()                    { budgetOff(); assumptions.clear(); return solve_() == l_True; }
-inline bool     Solver::solve         (Lit p)               { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_() == l_True; }
-inline bool     Solver::solve         (Lit p, Lit q)        { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_() == l_True; }
-inline bool     Solver::solve         (Lit p, Lit q, Lit r) { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_() == l_True; }
-inline bool     Solver::solve         (const vec<Lit>& assumps){ budgetOff(); assumps.copyTo(assumptions); return solve_() == l_True; }
-inline lbool    Solver::solveLimited  (const vec<Lit>& assumps){ assumps.copyTo(assumptions); return solve_(); }
+inline bool     Solver::solve         (BddVarOrdering* bdd_var_ordering)                    { budgetOff(); assumptions.clear(); return solve_(bdd_var_ordering) == l_True; }
+inline bool     Solver::solve         (BddVarOrdering* bdd_var_ordering, Lit p)               { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_(bdd_var_ordering) == l_True; }
+inline bool     Solver::solve         (BddVarOrdering* bdd_var_ordering, Lit p, Lit q)        { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_(bdd_var_ordering) == l_True; }
+inline bool     Solver::solve         (BddVarOrdering* bdd_var_ordering, Lit p, Lit q, Lit r) { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_(bdd_var_ordering) == l_True; }
+inline bool     Solver::solve         (BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps){ budgetOff(); assumps.copyTo(assumptions); return solve_(bdd_var_ordering) == l_True; }
+inline lbool    Solver::solveLimited  (BddVarOrdering* bdd_var_ordering, const vec<Lit>& assumps){ assumps.copyTo(assumptions); return solve_(bdd_var_ordering); }
 inline bool     Solver::okay          ()      const   { return ok; }
 
 inline void     Solver::toDimacs     (const char* file){ vec<Lit> as; toDimacs(file, as); }

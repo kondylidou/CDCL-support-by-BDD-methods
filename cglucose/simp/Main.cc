@@ -63,9 +63,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 
 #include "CallPythonFile.h"
-#include <iostream>
 #include <dlfcn.h> // For dynamic library loading on Unix-based systems
 #include <cstring> // For string operations
+#include <thread>
 
 #include <chrono>
 
@@ -81,28 +81,26 @@ typedef struct BucketArray BucketArray;
 extern "C" {
     BddVarOrdering* create_bdd_var_ordering(const char* input);
     void free_bdd_var_ordering(BddVarOrdering* ptr);
-    void process_buckets(BddVarOrdering* ptr);
 }
 
-void init_rust(const char* filePath) {
+BddVarOrdering*  init_rust(const char* filePath) {
     
     // Load the Rust dynamic library
     void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
 
     if (!rust_lib) {
         std::cerr << "Failed to load the Rust library: " << dlerror() << std::endl;
-        return;
+        return NULL;
     }
 
     // Get pointers to the Rust functions
     auto create_bdd_var_ordering_ptr = reinterpret_cast<BddVarOrdering*(*)(const char*)>(dlsym(rust_lib, "create_var_ordering"));
     auto free_bdd_var_ordering_ptr = reinterpret_cast<void(*)(BddVarOrdering*)>(dlsym(rust_lib, "free_var_ordering"));
-    auto process_bdd_buckets = reinterpret_cast<void(*)(BddVarOrdering*)>(dlsym(rust_lib, "process_buckets"));
 
-    if (!create_bdd_var_ordering_ptr || !free_bdd_var_ordering_ptr || !process_bdd_buckets) {
+    if (!create_bdd_var_ordering_ptr || !free_bdd_var_ordering_ptr) {
         std::cerr << "Failed to get function pointers from the Rust library: " << dlerror() << std::endl;
         dlclose(rust_lib);
-        return;
+        return NULL;
     }
 
     // Call the Rust function to create BddVarOrdering
@@ -112,17 +110,17 @@ void init_rust(const char* filePath) {
     if (!bdd_var_ordering) {
         std::cerr << "Failed to create BddVarOrdering in Rust" << std::endl;
         dlclose(rust_lib);
-        return;
+        return NULL;
     }
 
     // Use the BddVarOrdering as needed
-    process_bdd_buckets(bdd_var_ordering);
 
     // Free the BddVarOrdering when done
-    free_bdd_var_ordering_ptr(bdd_var_ordering);
+    //free_bdd_var_ordering_ptr(bdd_var_ordering);
 
     // Unload the Rust library
     dlclose(rust_lib);
+    return bdd_var_ordering;
 }
 
 static const char* _certified = "CORE -- CERTIFIED UNSAT";
@@ -343,10 +341,10 @@ but for testing purpose it is made that simple. Future improvement will be done.
             parse_DIMACS(in, S);
             gzclose(in);
 
-            init_rust(filePaths[i]);
+            BddVarOrdering* bdd_var_ordering = init_rust(filePaths[i]);
 
             vec<Lit> dummy;
-            lbool ret = S.solveLimited(dummy);
+            lbool ret = S.solveLimited(bdd_var_ordering, dummy);
 
              if (S.verbosity > 0){
             printStats(S);
@@ -359,7 +357,6 @@ but for testing purpose it is made that simple. Future improvement will be done.
             vectorToPython(lists);
             solvedInstances(instances);
         }
-
 
     } catch (OutOfMemoryException&){
 	        printf("c =========================================================================================================\n");

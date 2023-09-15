@@ -10,8 +10,10 @@
 
 use bloom_filters::{BloomFilter, ClassicBloomFilter, DefaultBuildHashKernels};
 use rand::random;
+use anyhow::{anyhow, Result};
 use std::collections::hash_map::RandomState;
 
+#[repr(C)]
 pub struct ClauseDatabase {
     global_filter: ClassicBloomFilter<DefaultBuildHashKernels<RandomState>>,
     local_filter: ClassicBloomFilter<DefaultBuildHashKernels<RandomState>>,
@@ -55,5 +57,37 @@ impl ClauseDatabase {
 
     pub fn reset_local_filter(&mut self) {
         self.local_filter.reset();
+    }
+
+    pub fn filter_clause(&mut self, clause: Vec<i32>) -> Result<Vec<i32>> {
+        if !self.global_filter_contains(&clause) {
+            self.insert_to_global_filter(&clause);
+
+            if !self.local_filter_contains(&clause) {
+                self.insert_to_local_filter(&clause);
+                Ok(clause)
+            } else {
+                Err(anyhow!("Clause didn't pass the local filter: {:?}", clause))
+            }
+        } else {
+            Err(anyhow!(
+                "Clause didn't pass the global filter: {:?}",
+                clause
+            ))
+        }
+    }
+
+    // TODO handle errors based on glucose
+    pub fn get_filtered_clauses(&mut self, learned_clauses: Vec<Vec<i32>>) -> Vec<Vec<i32>> {
+        let mut filtered_clauses: Vec<Vec<i32>> = Vec::new();
+        self.reset_local_filter();
+
+        for clause in learned_clauses {
+            if let Ok(filtered_clause) = self.filter_clause(clause) {
+                filtered_clauses.push(filtered_clause);
+            }
+        }
+
+        filtered_clauses
     }
 }

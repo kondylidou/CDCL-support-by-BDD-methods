@@ -57,7 +57,6 @@ using namespace Glucose;
 //=================================================================================================
 // Options:
 
-
 static const char* _cat = "SIMP";
 
 static BoolOption   opt_use_asymm        (_cat, "asymm",        "Shrink clauses by asymmetric branching.", false);
@@ -164,7 +163,7 @@ Var SimpSolver::newVar(bool sign, bool dvar) {
     }
     return v; }
 
-lbool SimpSolver::solve_(bool do_simp, bool turn_off_simp)
+lbool SimpSolver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_off_simp)
 {
     vec<Var> extra_frozen;
     lbool    result = l_True;
@@ -188,7 +187,7 @@ lbool SimpSolver::solve_(bool do_simp, bool turn_off_simp)
     }
 
     if (result == l_True)
-        result = Solver::solve_();
+        result = Solver::solve_(bdd_var_ordering);
     else if (verbosity >= 1)
         printf("===============================================================================\n");
 
@@ -255,9 +254,9 @@ bool SimpSolver::addClauseLink    (Lit p)          { add_tmp.clear(); add_tmp.pu
 bool SimpSolver::addClauseLink    (Lit p, Lit q)          { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); return addClause_(add_tmp); }
 bool SimpSolver::addClauseLink    (Lit p, Lit q, Lit r)   { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); add_tmp.push(r); return addClause_(add_tmp); }
 int  SimpSolver::nVarsLink        ()      const   { return vardata.size(); }
-bool SimpSolver::solveLink        (                     bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); return solve_(do_simp, turn_off_simp) == l_True; }
-bool SimpSolver::solveLink        (Lit p       ,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_(do_simp, turn_off_simp) == l_True; }
-bool SimpSolver::solveWithAssumpLink        (bool do_simp, bool turn_off_simp)  { budgetOff(); return solve_(do_simp, turn_off_simp) == l_True; }
+bool SimpSolver::solveLink        (BddVarOrdering* bdd_var_ordering,                      bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); return solve_(bdd_var_ordering, do_simp, turn_off_simp) == l_True; }
+bool SimpSolver::solveLink        (BddVarOrdering* bdd_var_ordering, Lit p       ,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_(bdd_var_ordering, do_simp, turn_off_simp) == l_True; }
+bool SimpSolver::solveWithAssumpLink        (BddVarOrdering* bdd_var_ordering,            bool do_simp, bool turn_off_simp)  { budgetOff(); return solve_(bdd_var_ordering, do_simp, turn_off_simp) == l_True; }
 double SimpSolver::totalTime()              { return cpuTime(); }
 bool    SimpSolver::addTmpClause() { return addClause_(add_tmp); }
 void    SimpSolver::cleanTmpClauseVec() { add_tmp.clear();  }

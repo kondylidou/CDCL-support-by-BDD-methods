@@ -1,7 +1,7 @@
 use std::time::Instant;
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use crate::{parser, variable_ordering::var_ordering::BddVarOrdering};
+use crate::{parser, variable_ordering::{var_ordering::BddVarOrdering, bucket::{Bucket, Buckets}}, sharing::clause_database::ClauseDatabase};
 
 #[no_mangle]
 pub extern "C" fn create_var_ordering(path: *const c_char) -> *mut BddVarOrdering {
@@ -27,15 +27,27 @@ pub extern "C" fn create_var_ordering(path: *const c_char) -> *mut BddVarOrderin
         "Time elapsed to create the variable ordering : {:?}",
         start.elapsed()
     );
+    Box::into_raw(Box::new(var_ordering))
+}
 
+#[no_mangle]
+pub extern "C" fn create_buckets(var_ordering_ptr: *mut BddVarOrdering) -> *mut Buckets {
     let start = Instant::now();
-    var_ordering.group_clauses_into_buckets();
+
+    // Safety: This is safe because we trust that the provided pointer is valid.
+    let var_ordering = unsafe {&mut  *var_ordering_ptr };
+
+    let buckets = var_ordering.group_clauses_into_buckets();
     println!(
-        "Time elapsed to create the buckets in the variable ordering : {:?}",
+        "Time elapsed to create the buckets : {:?}",
         start.elapsed()
     );
+    Box::into_raw(Box::new(Buckets{buckets}))
+}
 
-    Box::into_raw(Box::new(var_ordering))
+#[no_mangle]
+pub extern "C" fn initialize_clause_database() -> *mut ClauseDatabase {
+    Box::into_raw(Box::new(ClauseDatabase::new()))
 }
 
 // Define a function to free the memory allocated for the BddVarOrdering
@@ -48,17 +60,21 @@ pub extern "C" fn free_var_ordering(ptr: *mut BddVarOrdering) {
 }
 
 #[no_mangle]
-pub extern "C" fn process_buckets(n: usize, var_ordering: *mut BddVarOrdering) {
-    if var_ordering.is_null() {
+pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase, n_ptr: *mut i32) {
+    if var_ordering_ptr.is_null() {
         return;
     }
 
-    // Access and process the data
-    unsafe {
-        let var_ordering_ref = &mut *var_ordering;
-        for bucket in var_ordering_ref.buckets.clone().iter().skip(n) {
-            println!("Bucket data: {:?}", bucket.clauses);
-            var_ordering_ref.build(bucket.clone());
-        }
+    // Safety: This is safe because we trust that the provided pointer is valid.
+    let var_ordering = unsafe {&mut  *var_ordering_ptr };
+    let buckets = unsafe {&mut  *buckets_ptr };
+    let clause_database = unsafe {&mut  *clause_database_ptr };
+
+    let mut j = 0; 
+
+    for bucket in buckets.iter().skip(unsafe { *n_ptr } as usize) {
+        let _ = var_ordering.build(bucket, clause_database);
+        j += 1;
     }
+    unsafe { *n_ptr+=j };
 }

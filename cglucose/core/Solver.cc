@@ -55,10 +55,21 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/Constants.h"
 #include "Solver.h"
 
+#include <iostream>
+#include <thread>
+#include <cstring>
+#include <dlfcn.h> // For loading dynamic libraries
+
 using namespace Glucose;
 
 //=================================================================================================
 // Options:
+
+extern "C" {
+    BddBuckets* create_buckets(BddVarOrdering* ptr);
+    BddClauseDatabase* initialize_clause_database();
+    void run_rust(BddVarOrdering* ptr,  BddBuckets* buckets, BddClauseDatabase* database, int* n);
+}
 
 static const char* _cat = "CORE";
 static const char* _cr = "CORE -- RESTART";
@@ -1521,13 +1532,35 @@ void Solver::printIncrementalStats() {
 
 // NOTE: assumptions passed in member-variable 'assumptions'.
 
-lbool Solver::solve_(bool do_simp, bool turn_off_simp) // Parameters are useless in core but useful for SimpSolver....
+lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_off_simp) // Parameters are useless in core but useful for SimpSolver....
 {
     if(incremental && certifiedUNSAT) {
     printf("Can not use incremental and certified unsat in the same time\n");
     exit(-1);
   }
  
+    // Load the Rust library
+    void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+    if (!rust_lib) {
+        std::cerr << "Error loading Rust library: " << dlerror() << std::endl;
+        return l_False;
+    }
+
+    // Get a pointer to the Rust functions
+    auto create_bdd_buckets = reinterpret_cast<BddBuckets*(*)(BddVarOrdering*)>(dlsym(rust_lib, "create_buckets"));
+    auto initialize_bdd_clause_database = reinterpret_cast<BddClauseDatabase*(*)()>(dlsym(rust_lib, "initialize_clause_database"));
+    auto rust_run = reinterpret_cast<void(*)(BddVarOrdering*, BddBuckets*, BddClauseDatabase*, int*)>(dlsym(rust_lib, "run"));
+
+    if (!create_bdd_buckets || !initialize_bdd_clause_database || !rust_run) {
+        std::cerr << "Error loading Rust function: " << dlerror() << std::endl;
+        dlclose(rust_lib);
+        return l_False;
+    }
+
+    BddBuckets* bdd_buckets = create_bdd_buckets(bdd_var_ordering);
+    BddClauseDatabase* bdd_clause_database = initialize_bdd_clause_database();
+
+
     model.clear();
     conflict.clear();
     if (!ok) return l_False;
@@ -1559,10 +1592,25 @@ lbool Solver::solve_(bool do_simp, bool turn_off_simp) // Parameters are useless
 
     // Search:
     int curr_restarts = 0;
+    int curr_bucket = 0;
     while (status == l_Undef){
-      status = search(0); // the parameter is useless in glucose, kept to allow modifications
+        
+        // TODO vector of clauses
+
+        // Call Rust function in a separate thread
+        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, &curr_bucket]() {
+            rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, &curr_bucket);
+        });
+        curr_bucket++;
+
+        // Do other work in the main thread
+        status = search(0); // the parameter is useless in glucose, kept to allow modifications
         if (!withinBudget()) break;
         curr_restarts++;
+
+        // Wait for the Rust thread to finish
+        rust_thread.join();
+
     }
 
     if (!incremental && verbosity >= 1)
@@ -1596,6 +1644,9 @@ lbool Solver::solve_(bool do_simp, bool turn_off_simp) // Parameters are useless
         nbUnsatCalls++; 
         totalTime4Unsat +=(finalTime-curTime);
     }
+
+    // Unload the Rust library
+    dlclose(rust_lib);
 
     return status;
 

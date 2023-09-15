@@ -94,8 +94,8 @@ impl Bdd {
 #[cfg(test)]
 mod tests {
     use crate::{
-        init_glucose_solver, parser, sharing::sharing_manager::SharingManager,
-        variable_ordering::var_ordering::BddVarOrdering, GlucoseWrapper,
+        parser,
+        variable_ordering::var_ordering::BddVarOrdering,
     };
 
     use super::*;
@@ -105,15 +105,11 @@ mod tests {
         let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/tests/test3.cnf";
 
         let expressions = parser::parse_dimacs_cnf_file(path).unwrap();
-        // build the solver
-        let solver = init_glucose_solver();
-        let glucose = GlucoseWrapper::new(solver);
-        // build the sharing manager
-        let mut sharing_manager = SharingManager::new(glucose);
+        
         // build the variable ordering
         let var_ordering = BddVarOrdering::new(expressions);
 
-        let bdd = var_ordering.build_bdd(&mut sharing_manager);
+        let bdd = var_ordering.build_bdd();
 
         let mut expected_paths: Vec<Vec<(bool, BddPointer)>> = Vec::new();
         expected_paths.push(vec![
@@ -141,15 +137,11 @@ mod tests {
         let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/tests/test1.cnf";
 
         let expressions = parser::parse_dimacs_cnf_file(path).unwrap();
-        // build the solver
-        let solver = init_glucose_solver();
-        let glucose = GlucoseWrapper::new(solver);
-        // build the sharing manager
-        let mut sharing_manager = SharingManager::new(glucose);
+
         // build the variable ordering
         let var_ordering = BddVarOrdering::new(expressions);
 
-        let bdd = var_ordering.build_bdd(&mut sharing_manager);
+        let bdd = var_ordering.build_bdd();
 
         let conflict_paths = bdd.get_conflict_paths();
         let learned_clauses = bdd.build_learned_clause(&conflict_paths);
@@ -161,15 +153,11 @@ mod tests {
         let path: &str = "/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/tests/test3.cnf";
 
         let expressions = parser::parse_dimacs_cnf_file(path).unwrap();
-        // build the solver
-        let solver = init_glucose_solver();
-        let glucose = GlucoseWrapper::new(solver);
-        // build the sharing manager
-        let mut sharing_manager = SharingManager::new(glucose);
+        
         // build the variable ordering
         let var_ordering = BddVarOrdering::new(expressions);
 
-        let bdd = var_ordering.build_bdd(&mut sharing_manager);
+        let bdd = var_ordering.build_bdd();
 
         let mut learned_clauses = Vec::new();
         learned_clauses.push(vec![1, -2, -3, -4]);

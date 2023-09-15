@@ -1,5 +1,4 @@
 use super::bucket::Bucket;
-use anyhow::Result;
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
@@ -7,17 +6,15 @@ use crate::bdd::Bdd;
 use crate::bdd_util::BddVar;
 use crate::expr::bool_expr::Clause;
 use crate::parser::Dimacs;
-use crate::sharing::sharing_manager::SharingManager;
+use crate::sharing::clause_database::ClauseDatabase;
 use crate::variable_ordering::var_ordering_builder::BddVarOrderingBuilder;
 use rayon::slice::ParallelSliceMut;
 
-#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct BddVarOrdering {
     pub variables: Vec<BddVar>,
     pub expressions: Vec<Clause>,
     pub ordering: HashMap<i32, usize>,
-    pub buckets: Vec<Bucket>
 }
 
 impl BddVarOrdering {
@@ -48,7 +45,7 @@ impl BddVarOrdering {
     }
 
     // Function to group clauses into buckets based on variable scores
-    pub fn group_clauses_into_buckets(&mut self) {
+    pub fn group_clauses_into_buckets(&mut self) -> Vec<Bucket> {
         let mut buckets: HashMap<i32, Bucket> = HashMap::new();
 
         for clause in &self.expressions {
@@ -69,7 +66,7 @@ impl BddVarOrdering {
         let mut result_buckets: Vec<Bucket> = buckets.values().cloned().collect();
         result_buckets.sort_by_key(|bucket| self.ordering.get(&bucket.index).unwrap());
 
-        self.buckets = result_buckets
+        result_buckets
     }
 
     fn find_interacting_variables(&self) -> HashMap<i32, HashSet<i32>> {
@@ -106,7 +103,7 @@ impl BddVarOrdering {
     }
 
      // Method to group clauses into buckets based on interaction-based ordering
-     fn group_clauses_into_buckets_interactions(&mut self, expressions: &Vec<Clause>) {
+     fn group_clauses_into_buckets_interactions(&mut self, expressions: &Vec<Clause>) -> Vec<Bucket> {
         let variable_interactions = self.find_interacting_variables();
         let mut buckets: Vec<Bucket> = Vec::new();
 
@@ -131,13 +128,14 @@ impl BddVarOrdering {
             }
         }
 
-        self.buckets = buckets
+        buckets
     }
     
-    pub fn build(&mut self, bucket: Bucket) -> Result<()> {
+    pub fn build(&mut self, bucket: &Bucket, clause_database: &mut ClauseDatabase) -> Vec<Vec<i32>> {
         let threshold = 20;
     
         let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
+       
         let mut n = 1;
         while n < bucket.clauses.len() {
             let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
@@ -147,24 +145,28 @@ impl BddVarOrdering {
             // At this point, we will reorder the variables based on interactions and
             // subdivide the bucket into smaller buckets.
             if bdd.size() > threshold {
-                let affected_vars = self.create_interaction_based_ordering();
+                //let affected_vars = self.create_interaction_based_ordering();
                 //reordered = true;
-                let new_buckets = self.group_clauses_into_buckets_interactions(&bucket.clauses);
+                //let new_buckets = self.group_clauses_into_buckets_interactions(&bucket.clauses);
 
                 //self.build(new_buckets, sharing_manager);
             }
 
             n += 1;
         }
+        println!("{:?}", bdd);
+        let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
 
-       let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
-       // TODO handle unwrap
-       //sharing_manager.send_learned_clauses(temp_learnts).unwrap();
+        let filtered_clauses = clause_database.get_filtered_clauses(temp_learnts);
+        for clause in &filtered_clauses {
+        if clause.len() < 10 { println!("{:?}", clause);}
+        //println!("{:?}", clause);
+        }
 
-        Ok(())
+        filtered_clauses
     }    
 
-    pub fn build_bdd(&self, sharing_manager: &mut SharingManager) -> Bdd {
+    pub fn build_bdd(&self) -> Bdd {
         let mut bdd = self.expressions[0].to_bdd(&self.variables, &self.ordering);
         let mut n = 1;
         while n < self.expressions.len() {
@@ -172,7 +174,7 @@ impl BddVarOrdering {
                 || {
                     let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
                     // TODO handle unwrap
-                    sharing_manager.send_learned_clauses(temp_learnts).unwrap();
+                    //sharing_manager.send_learned_clauses(temp_learnts).unwrap();
                 },
                 || self.expressions[n].to_bdd(&self.variables, &self.ordering),
             );
@@ -188,11 +190,8 @@ mod tests {
     use crate::{
         bdd_util::BddVar,
         expr::bool_expr::{Clause, Expr},
-        init_glucose_solver,
         parser::{self, Dimacs},
-        sharing::sharing_manager::SharingManager,
-        variable_ordering::var_ordering::BddVarOrdering,
-        GlucoseWrapper,
+        variable_ordering::var_ordering::BddVarOrdering, sharing::clause_database::ClauseDatabase,
     };
     use std::{
         collections::{HashMap, HashSet},
@@ -243,7 +242,6 @@ mod tests {
                 // ... more expressions
             ],
             ordering: HashMap::from_iter(vec![(1, 0), (2, 1), (3, 2), (4, 3), (5, 4)]),
-            buckets: Vec::new(),
         }
     }
 
@@ -309,12 +307,12 @@ mod tests {
         };
         let mut var_ordering = BddVarOrdering::new(dimacs);
         // Call the function
-        var_ordering.group_clauses_into_buckets_interactions(&var_ordering.expressions.clone());
+        let buckets = var_ordering.group_clauses_into_buckets_interactions(&var_ordering.expressions.clone());
 
         // Test assertions
-        assert_eq!(var_ordering.buckets.len(), 2);
-        assert_eq!(var_ordering.buckets[0].clauses.len(), 2);
-        assert_eq!(var_ordering.buckets[1].clauses.len(), 1);
+        assert_eq!(buckets.len(), 2);
+        assert_eq!(buckets[0].clauses.len(), 2);
+        assert_eq!(buckets[1].clauses.len(), 1);
     }
 
     #[test]
@@ -330,11 +328,7 @@ mod tests {
         );
 
         let start = Instant::now();
-        // build the solver
-        let solver = init_glucose_solver();
-        let glucose = GlucoseWrapper::new(solver);
-        // build the sharing manager
-        let mut sharing_manager = SharingManager::new(glucose);
+       
         // build the variable ordering
         let mut var_ordering = BddVarOrdering::new(expressions);
         println!(
@@ -342,10 +336,12 @@ mod tests {
             start.elapsed()
         );
 
+        // Clause Database
+        let mut clause_database = ClauseDatabase::new();
         // Bucket Clustering
-        var_ordering.group_clauses_into_buckets();
-        for bucket in var_ordering.buckets.clone() {
-            var_ordering.build(bucket);
+        let buckets = var_ordering.group_clauses_into_buckets();
+        for bucket in buckets.clone() {
+            var_ordering.build(&bucket, &mut clause_database);
         }
     }
 }
