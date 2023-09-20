@@ -99,7 +99,7 @@ impl Expr {
         // the exact same node exists in the node cache). The nodes for
         // each sub-expression are constructed by recursion.
         match self {
-            Const(value) => Bdd::new_value(BddVar::new(i32::MAX, 0.0), value),
+            Const(value) => Bdd::new_value(BddVar::new(i32::MAX), value),
             Var(name) => {
                 if let Some(pos) = variables.iter().position(|i| i.name.eq(name)) {
                     Bdd::new_var(variables[pos])

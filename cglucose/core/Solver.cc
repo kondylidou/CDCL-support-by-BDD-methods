@@ -71,6 +71,31 @@ extern "C" {
     void rust_run(BddVarOrdering* ptr,  BddBuckets* buckets, BddClauseDatabase* database, vec<vec<int>>* learnts);
 }
 
+vec<vec<Lit>>& translate_learnts(const vec<vec<int>>& learnts) {
+    vec<vec<Lit>> translation;
+
+    // Translate learnts from vec<vec<int>> to vec<vec<Lit>>
+    for (size_t i = 0; i < learnts.size(); ++i) {
+        size_t inner_size = learnts[i].size();
+
+        // Create an inner vector of Lits
+        vec<Lit> inner_vec;
+
+        // Translate each int element to Lit and add it to the inner vector
+        for (size_t j = 0; j < inner_size; ++j) {
+            int lit_value = learnts[i][j];
+            int var = abs(lit_value) - 1;
+            inner_vec.push((lit_value > 0) ? mkLit(var) : ~mkLit(var)); // Assuming 'push' method for adding elements
+        }
+
+        translation.push(inner_vec); // Add the inner vector to the outer vector
+    }
+
+    return translation;
+}
+
+
+
 static const char* _cat = "CORE";
 static const char* _cr = "CORE -- RESTART";
 static const char* _cred = "CORE -- REDUCE";
@@ -1612,6 +1637,9 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
         std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, &learnts]() {
             rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, &learnts);
         });
+
+        vec<vec<Lit>>& translated_learnts = translate_learnts(learnts);
+        printf("c ============================\n",translated_learnts);
 
         // Do other work in the main thread
         status = search(0); // the parameter is useless in glucose, kept to allow modifications

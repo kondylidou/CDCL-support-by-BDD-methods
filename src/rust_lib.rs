@@ -36,7 +36,7 @@ pub extern "C" fn init(path: *const c_char) -> *mut BddVarOrdering {
 pub extern "C" fn free_var_ordering(ptr: *mut BddVarOrdering) {
     if !ptr.is_null() {
         // Deallocate the memory when it's no longer needed
-        unsafe { Box::from_raw(ptr) };
+        unsafe { let _ = Box::from_raw(ptr); };
     }
 }
 
@@ -61,16 +61,15 @@ pub extern "C" fn initialize_clause_database() -> *mut ClauseDatabase {
 }
 
 #[no_mangle]
-pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase) -> *const Vec<i32> { 
+pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase) -> *mut Vec<Vec<i32>> { 
     // Safety: This is safe because we trust that the provided pointer is valid.
     let var_ordering = unsafe {&mut  *var_ordering_ptr };
     let buckets = unsafe {&mut *buckets_ptr };
-    println!("{:?}", buckets.len());
+    if buckets.is_empty() {
+        return std::ptr::null_mut();
+    }
     let clause_database = unsafe {&mut  *clause_database_ptr };
     let mut learnts = Vec::new();
     var_ordering.build(buckets, clause_database, &mut learnts);
-    println!("l{:?}", learnts.len());
-    println!("b{:?}", buckets.len());
-    let learnts_ptr = learnts.as_ptr();
-    learnts_ptr
+    Box::into_raw(Box::new(learnts))
 }

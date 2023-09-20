@@ -81,7 +81,7 @@ pub struct BddVar {
 }
 
 impl BddVar {
-    pub fn new(name: i32, score: f64) -> Self {
+    pub fn new(name: i32) -> Self {
         BddVar { name }
     }
 
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn bdd_node_one() {
-        let x1 = BddVar::new(1, 0.0);
+        let x1 = BddVar::new(1);
         let one = BddNode::mk_one(x1);
 
         assert!(one.is_terminal());
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn bdd_node_zero() {
-        let x1 = BddVar::new(1, 0.0);
+        let x1 = BddVar::new(1);
         let zero = BddNode::mk_zero(x1);
 
         assert!(zero.is_terminal());
@@ -290,8 +290,8 @@ mod tests {
 
     #[test]
     fn bdd_node_create() {
-        let x1 = BddVar::new(1, 0.0);
-        let x2 = BddVar::new(2, 0.0);
+        let x1 = BddVar::new(1);
+        let x2 = BddVar::new(2);
 
         let _node2 = BddNode::mk_node(x2, BddPointer::new_one(), BddPointer::new_one());
 

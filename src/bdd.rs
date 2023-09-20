@@ -24,7 +24,7 @@ impl Bdd {
         let mut nodes = Vec::new();
         // Maximum number as pointer as in the apply method always the smaller var is
         // selected and we want to replace these nodes.
-        let max_ptr = BddVar::new(i32::MAX, 0.0);
+        let max_ptr = BddVar::new(i32::MAX);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
         Bdd {
@@ -37,7 +37,7 @@ impl Bdd {
         let mut nodes = Vec::with_capacity(cap);
         // Maximum number as pointer as in the apply method always the smaller var is
         // selected and we want to replace these nodes.
-        let max_ptr = BddVar::new(i32::MAX, 0.0);
+        let max_ptr = BddVar::new(i32::MAX);
         nodes.push(BddNode::mk_zero(max_ptr));
         nodes.push(BddNode::mk_one(max_ptr));
         Bdd {
@@ -146,9 +146,9 @@ impl Bdd {
     /// Negate a Bdd.
     pub fn negate(&mut self) -> Bdd {
         if self.is_true() {
-            Bdd::new_false(BddVar::new(i32::MAX, 0.0))
+            Bdd::new_false(BddVar::new(i32::MAX))
         } else if self.is_false() {
-            Bdd::new_true(BddVar::new(i32::MAX, 0.0))
+            Bdd::new_true(BddVar::new(i32::MAX))
         } else {
             let mut nodes = self.nodes.clone();
             for node in nodes.iter_mut().skip(2) {
@@ -345,11 +345,11 @@ impl Bdd {
         let mut nodes_map: std::collections::HashMap<BddNode, BddPointer> =
             std::collections::HashMap::with_capacity(std::cmp::max(self.size(), other.size()));
         nodes_map.insert(
-            BddNode::mk_zero(BddVar::new(i32::MAX, 0.0)),
+            BddNode::mk_zero(BddVar::new(i32::MAX)),
             BddPointer::new_zero(),
         );
         nodes_map.insert(
-            BddNode::mk_one(BddVar::new(i32::MAX, 0.0)),
+            BddNode::mk_one(BddVar::new(i32::MAX)),
             BddPointer::new_one(),
         );
 
@@ -702,9 +702,9 @@ mod tests {
     fn create_sample_bdd() -> Bdd {
         let mut bdd = Bdd::new();
 
-        let x1 = BddVar::new(1, 0.0);
-        let x2 = BddVar::new(2, 0.0);
-        let x3 = BddVar::new(3, 0.0);
+        let x1 = BddVar::new(1);
+        let x2 = BddVar::new(2);
+        let x3 = BddVar::new(3);
 
         let node3: BddNode =
             BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
@@ -723,9 +723,9 @@ mod tests {
     fn create_sample_bdd_complicated() -> Bdd {
         let mut bdd = Bdd::new();
 
-        let x1 = BddVar::new(1, 0.0);
-        let x2 = BddVar::new(2, 0.0);
-        let x3 = BddVar::new(3, 0.0);
+        let x1 = BddVar::new(1);
+        let x2 = BddVar::new(2);
+        let x3 = BddVar::new(3);
 
         let node3: BddNode =
             BddNode::mk_node(x3.clone(), BddPointer::new_zero(), BddPointer::new_one());
@@ -745,7 +745,7 @@ mod tests {
         let bdd = create_sample_bdd();
         let ptr = BddPointer::new(3);
         let var = bdd.var_of_ptr(ptr);
-        assert_eq!(var, BddVar::new(2, 0.0));
+        assert_eq!(var, BddVar::new(2));
     }
 
     #[test]
@@ -757,7 +757,7 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+        let variables = vec![BddVar::new(2), BddVar::new(1), BddVar::new(3)];
 
         bdd.partial_reorder_bdd(&variables, &mut ordering);
 
@@ -779,7 +779,7 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+        let variables = vec![BddVar::new(2), BddVar::new(1), BddVar::new(3)];
 
         bdd.partial_reorder_bdd(&variables, &mut ordering);
 
@@ -801,7 +801,7 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+        let variables = vec![BddVar::new(2), BddVar::new(1), BddVar::new(3)];
 
         bdd.sift_variables_nec(&mut ordering, &variables);
 
@@ -823,7 +823,7 @@ mod tests {
         ordering.insert(3, 2);
         ordering.insert(i32::MAX, 3);
 
-        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+        let variables = vec![BddVar::new(2), BddVar::new(1), BddVar::new(3)];
 
         bdd.sift_variables_nec(&mut ordering, &variables);
 
@@ -847,7 +847,7 @@ mod tests {
 
         println!("Original BDD: {:?}", bdd);
 
-        let variables = vec![BddVar::new(2, 0.0), BddVar::new(1, 0.0), BddVar::new(3, 0.0)];
+        let variables = vec![BddVar::new(2), BddVar::new(1), BddVar::new(3)];
 
         bdd.partial_reorder_bdd(&variables, &mut ordering);
 

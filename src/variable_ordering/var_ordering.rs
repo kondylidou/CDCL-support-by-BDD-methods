@@ -141,7 +141,6 @@ impl BddVarOrdering {
             
             let mut n = 1;
             while n < bucket.clauses.len() {
-                //println!("{:?}", bucket.clone());
                 // build the final bdd from the rest of the buckets clauses by applying 
                 // the and operation between the temp bdds. 
                 let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
@@ -170,7 +169,6 @@ impl BddVarOrdering {
             // get the temp learnt clauses from the bucket
             let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
             filtered_clauses.extend(clause_database.get_filtered_clauses(temp_learnts));
-            println!("{:?}", filtered_clauses.len());
             buckets.remove(0);
         }
     }    
@@ -179,14 +177,7 @@ impl BddVarOrdering {
         let mut bdd = self.expressions[0].to_bdd(&self.variables, &self.ordering);
         let mut n = 1;
         while n < self.expressions.len() {
-            let (_, temp_bdd) = rayon::join(
-                || {
-                    let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
-                    // TODO handle unwrap
-                    //sharing_manager.send_learned_clauses(temp_learnts).unwrap();
-                },
-                || self.expressions[n].to_bdd(&self.variables, &self.ordering),
-            );
+            let temp_bdd = self.expressions[n].to_bdd(&self.variables, &self.ordering);
             bdd = bdd.and(&temp_bdd, &self.ordering);
             n += 1;
         }

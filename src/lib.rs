@@ -14,10 +14,6 @@ pub use rust_lib::initialize_clause_database;
 pub use rust_lib::free_var_ordering;
 pub use rust_lib::run;
 
-mod statistics {
-    pub mod stats;
-}
-
 mod expr {
     pub mod bool_expr;
 }
