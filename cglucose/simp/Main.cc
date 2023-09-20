@@ -79,8 +79,8 @@ typedef struct BddVarOrdering BddVarOrdering;
 typedef struct BucketArray BucketArray;
 
 extern "C" {
-    BddVarOrdering* create_bdd_var_ordering(const char* input);
-    void free_bdd_var_ordering(BddVarOrdering* ptr);
+    BddVarOrdering* rust_init(const char* path);
+    void free_bdd_var_ordering(BddVarOrdering* bdd_bar_ordering_ptr);
 }
 
 BddVarOrdering*  init_rust(const char* filePath) {
@@ -94,17 +94,17 @@ BddVarOrdering*  init_rust(const char* filePath) {
     }
 
     // Get pointers to the Rust functions
-    auto create_bdd_var_ordering_ptr = reinterpret_cast<BddVarOrdering*(*)(const char*)>(dlsym(rust_lib, "create_var_ordering"));
+    auto rust_init = reinterpret_cast<BddVarOrdering*(*)(const char*)>(dlsym(rust_lib, "init"));
     auto free_bdd_var_ordering_ptr = reinterpret_cast<void(*)(BddVarOrdering*)>(dlsym(rust_lib, "free_var_ordering"));
 
-    if (!create_bdd_var_ordering_ptr || !free_bdd_var_ordering_ptr) {
+    if (!rust_init || !free_bdd_var_ordering_ptr) {
         std::cerr << "Failed to get function pointers from the Rust library: " << dlerror() << std::endl;
         dlclose(rust_lib);
         return NULL;
     }
 
     // Call the Rust function to create BddVarOrdering
-    BddVarOrdering* bdd_var_ordering = create_bdd_var_ordering_ptr(filePath);
+    BddVarOrdering* bdd_var_ordering = rust_init(filePath);
 
     // Check if the creation was successful
     if (!bdd_var_ordering) {

@@ -443,6 +443,8 @@ protected:
 
     // lk
     bool    addLearntClause(vec<Lit> &learnt_clause);
+    void*   loadRustLibrary();
+    void    unloadRustLibrary(void* rust_lib);
 
     //TimeControl
     void timeController(int timeframe);

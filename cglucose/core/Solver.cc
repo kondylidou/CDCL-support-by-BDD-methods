@@ -68,15 +68,13 @@ using namespace Glucose;
 extern "C" {
     BddBuckets* create_buckets(BddVarOrdering* ptr);
     BddClauseDatabase* initialize_clause_database();
-    void run_rust(BddVarOrdering* ptr,  BddBuckets* buckets, BddClauseDatabase* database, int* n);
+    void rust_run(BddVarOrdering* ptr,  BddBuckets* buckets, BddClauseDatabase* database, vec<vec<int>>* learnts);
 }
 
 static const char* _cat = "CORE";
 static const char* _cr = "CORE -- RESTART";
 static const char* _cred = "CORE -- REDUCE";
 static const char* _cm = "CORE -- MINIMIZE";
-
-
 
 
 static DoubleOption opt_K(_cr, "K", "The constant used to force restart", 0.8, DoubleRange(0, false, 1, false));
@@ -1460,6 +1458,21 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
     return true;
 }
 
+// Load the Rust library
+void* Solver::loadRustLibrary() {
+    void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+    if (!rust_lib) {
+        std::cerr << "Error loading Rust library: " << dlerror() << std::endl;
+        return NULL;
+    }
+    return rust_lib;
+}
+
+void Solver::unloadRustLibrary(void* rust_lib) {
+    // Unload the Rust library
+    dlclose(rust_lib);
+}
+
 /************************************************************************************/
 /****************************Danail**************************************************/
 /************************************************************************************/
@@ -1538,18 +1551,14 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     printf("Can not use incremental and certified unsat in the same time\n");
     exit(-1);
   }
- 
+
     // Load the Rust library
-    void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
-    if (!rust_lib) {
-        std::cerr << "Error loading Rust library: " << dlerror() << std::endl;
-        return l_False;
-    }
+    void* rust_lib = loadRustLibrary();
 
     // Get a pointer to the Rust functions
     auto create_bdd_buckets = reinterpret_cast<BddBuckets*(*)(BddVarOrdering*)>(dlsym(rust_lib, "create_buckets"));
     auto initialize_bdd_clause_database = reinterpret_cast<BddClauseDatabase*(*)()>(dlsym(rust_lib, "initialize_clause_database"));
-    auto rust_run = reinterpret_cast<void(*)(BddVarOrdering*, BddBuckets*, BddClauseDatabase*, int*)>(dlsym(rust_lib, "run"));
+    auto rust_run = reinterpret_cast<void(*)(BddVarOrdering*, BddBuckets*, BddClauseDatabase*, vec<vec<int>>*)>(dlsym(rust_lib, "run"));
 
     if (!create_bdd_buckets || !initialize_bdd_clause_database || !rust_run) {
         std::cerr << "Error loading Rust function: " << dlerror() << std::endl;
@@ -1557,7 +1566,9 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
         return l_False;
     }
 
+    // Create the initial buckets
     BddBuckets* bdd_buckets = create_bdd_buckets(bdd_var_ordering);
+    // Create the shared clause database in Rust
     BddClauseDatabase* bdd_clause_database = initialize_bdd_clause_database();
 
 
@@ -1592,16 +1603,15 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
 
     // Search:
     int curr_restarts = 0;
-    int curr_bucket = 0;
     while (status == l_Undef){
         
-        // TODO vector of clauses
+        // Create a vector of vectors of ints
+        vec<vec<int>> learnts;
 
         // Call Rust function in a separate thread
-        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, &curr_bucket]() {
-            rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, &curr_bucket);
+        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, &learnts]() {
+            rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, &learnts);
         });
-        curr_bucket++;
 
         // Do other work in the main thread
         status = search(0); // the parameter is useless in glucose, kept to allow modifications
@@ -1646,7 +1656,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     }
 
     // Unload the Rust library
-    dlclose(rust_lib);
+    unloadRustLibrary(rust_lib);
 
     return status;
 

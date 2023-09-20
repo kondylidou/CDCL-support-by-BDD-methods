@@ -1,10 +1,11 @@
 use std::time::Instant;
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use crate::{parser, variable_ordering::{var_ordering::BddVarOrdering, bucket::{Bucket, Buckets}}, sharing::clause_database::ClauseDatabase};
+
+use crate::{parser, variable_ordering::{var_ordering::BddVarOrdering, bucket::Bucket}, sharing::clause_database::ClauseDatabase};
 
 #[no_mangle]
-pub extern "C" fn create_var_ordering(path: *const c_char) -> *mut BddVarOrdering {
+pub extern "C" fn init(path: *const c_char) -> *mut BddVarOrdering {
     // Convert the C string to a Rust &str
     let path_str = unsafe {
         CStr::from_ptr(path)
@@ -22,32 +23,12 @@ pub extern "C" fn create_var_ordering(path: *const c_char) -> *mut BddVarOrderin
 
     let start = Instant::now();
    
-    let mut var_ordering = BddVarOrdering::new(expressions);
+    let var_ordering = BddVarOrdering::new(expressions);
     println!(
         "Time elapsed to create the variable ordering : {:?}",
         start.elapsed()
     );
     Box::into_raw(Box::new(var_ordering))
-}
-
-#[no_mangle]
-pub extern "C" fn create_buckets(var_ordering_ptr: *mut BddVarOrdering) -> *mut Buckets {
-    let start = Instant::now();
-
-    // Safety: This is safe because we trust that the provided pointer is valid.
-    let var_ordering = unsafe {&mut  *var_ordering_ptr };
-
-    let buckets = var_ordering.group_clauses_into_buckets();
-    println!(
-        "Time elapsed to create the buckets : {:?}",
-        start.elapsed()
-    );
-    Box::into_raw(Box::new(Buckets{buckets}))
-}
-
-#[no_mangle]
-pub extern "C" fn initialize_clause_database() -> *mut ClauseDatabase {
-    Box::into_raw(Box::new(ClauseDatabase::new()))
 }
 
 // Define a function to free the memory allocated for the BddVarOrdering
@@ -60,21 +41,36 @@ pub extern "C" fn free_var_ordering(ptr: *mut BddVarOrdering) {
 }
 
 #[no_mangle]
-pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase, n_ptr: *mut i32) {
-    if var_ordering_ptr.is_null() {
-        return;
-    }
+pub extern "C" fn create_buckets(var_ordering_ptr: *mut BddVarOrdering) -> *mut Vec<Bucket> {
+    let start = Instant::now();
 
     // Safety: This is safe because we trust that the provided pointer is valid.
     let var_ordering = unsafe {&mut  *var_ordering_ptr };
-    let buckets = unsafe {&mut  *buckets_ptr };
+
+    let buckets = var_ordering.group_clauses_into_buckets();
+    println!(
+        "Time elapsed to create the buckets : {:?}",
+        start.elapsed()
+    );
+    Box::into_raw(Box::new(buckets))
+}
+
+#[no_mangle]
+pub extern "C" fn initialize_clause_database() -> *mut ClauseDatabase {
+    Box::into_raw(Box::new(ClauseDatabase::new()))
+}
+
+#[no_mangle]
+pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase) -> *const Vec<i32> { 
+    // Safety: This is safe because we trust that the provided pointer is valid.
+    let var_ordering = unsafe {&mut  *var_ordering_ptr };
+    let buckets = unsafe {&mut *buckets_ptr };
+    println!("{:?}", buckets.len());
     let clause_database = unsafe {&mut  *clause_database_ptr };
-
-    let mut j = 0; 
-
-    for bucket in buckets.iter().skip(unsafe { *n_ptr } as usize) {
-        let _ = var_ordering.build(bucket, clause_database);
-        j += 1;
-    }
-    unsafe { *n_ptr+=j };
+    let mut learnts = Vec::new();
+    var_ordering.build(buckets, clause_database, &mut learnts);
+    println!("l{:?}", learnts.len());
+    println!("b{:?}", buckets.len());
+    let learnts_ptr = learnts.as_ptr();
+    learnts_ptr
 }

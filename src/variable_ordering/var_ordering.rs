@@ -131,39 +131,48 @@ impl BddVarOrdering {
         buckets
     }
     
-    pub fn build(&mut self, bucket: &Bucket, clause_database: &mut ClauseDatabase) -> Vec<Vec<i32>> {
-        let threshold = 20;
-    
-        let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
-       
-        let mut n = 1;
-        while n < bucket.clauses.len() {
-            let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
-            bdd = bdd.and(&temp_bdd, &self.ordering);
+    pub fn build(&mut self, buckets: &mut Vec<Bucket>, clause_database: &mut ClauseDatabase, filtered_clauses: &mut Vec<Vec<i32>>) {
+        let threshold = 30;
+        let mut reordered = false;
 
-            // If the BDD is becoming too big, it means that we have reached a large bucket.
-            // At this point, we will reorder the variables based on interactions and
-            // subdivide the bucket into smaller buckets.
-            if bdd.size() > threshold {
-                //let affected_vars = self.create_interaction_based_ordering();
-                //reordered = true;
-                //let new_buckets = self.group_clauses_into_buckets_interactions(&bucket.clauses);
+        while let Some(bucket) = buckets.first() {
+            // build the initial bdd from the first clause in the bucket
+            let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
+            
+            let mut n = 1;
+            while n < bucket.clauses.len() {
+                //println!("{:?}", bucket.clone());
+                // build the final bdd from the rest of the buckets clauses by applying 
+                // the and operation between the temp bdds. 
+                let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
+                bdd = bdd.and(&temp_bdd, &self.ordering);
 
-                //self.build(new_buckets, sharing_manager);
+                // If the BDD is becoming too big, it means that we have reached the large buckets.
+                // At this point, we will reorder the variables based on interactions and
+                // subdivide the bucket into smaller buckets.
+                if bdd.size() > threshold {
+                    if !reordered {
+                        // if the variable ordering hasn't been updated yet, we update it
+                        // based on interactions and partially roerdered the already partially
+                        // constructed bdd based on the new variable ordering. We only rearrange 
+                        // the bdd nodes based on the affected variables.
+                        let affected_vars = self.create_interaction_based_ordering();
+                        bdd.partial_reorder_bdd(&affected_vars, &self.ordering);
+                        reordered = true;
+                    }
+                    // we will also split the large bucket into smaller ones and add them to the buckets set.
+                    let new_buckets = self.group_clauses_into_buckets_interactions(&bucket.clauses);
+                    buckets.extend(new_buckets);
+                    break;
+                }
+                n += 1;
             }
-
-            n += 1;
+            // get the temp learnt clauses from the bucket
+            let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
+            filtered_clauses.extend(clause_database.get_filtered_clauses(temp_learnts));
+            println!("{:?}", filtered_clauses.len());
+            buckets.remove(0);
         }
-        println!("{:?}", bdd);
-        let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
-
-        let filtered_clauses = clause_database.get_filtered_clauses(temp_learnts);
-        for clause in &filtered_clauses {
-        if clause.len() < 10 { println!("{:?}", clause);}
-        //println!("{:?}", clause);
-        }
-
-        filtered_clauses
     }    
 
     pub fn build_bdd(&self) -> Bdd {

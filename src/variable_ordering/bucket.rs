@@ -33,11 +33,6 @@ pub struct Bucket {
     pub index: i32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-#[repr(C)]
-pub struct Buckets { 
-    pub buckets: Vec<Bucket>
-}
 impl Bucket {
 
     pub fn vars(&self) -> HashSet<i32> {
