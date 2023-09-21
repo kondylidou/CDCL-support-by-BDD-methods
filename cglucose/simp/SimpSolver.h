@@ -104,11 +104,6 @@ class SimpSolver : public Solver {
     int     getNbLearnt();
     int     getVal(int i);
 
-    // lk
-    void    cleanTmpLearntClauseVec();
-    void    addToTmpLearntClause(Lit p);
-    bool    addTmpLearntClause();
-
     // Variable mode:
     // 
     void    setFrozen (Var v, bool b); // If a variable is frozen it will not be eliminated.

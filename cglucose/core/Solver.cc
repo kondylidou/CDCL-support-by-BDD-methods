@@ -71,28 +71,6 @@ extern "C" {
     void rust_run(BddVarOrdering* ptr,  BddBuckets* buckets, BddClauseDatabase* database, vec<vec<int>>* learnts);
 }
 
-vec<vec<Lit>>& translate_learnts(const vec<vec<int>>& learnts) {
-    vec<vec<Lit>> translation;
-
-    // Translate learnts from vec<vec<int>> to vec<vec<Lit>>
-    for (size_t i = 0; i < learnts.size(); ++i) {
-        size_t inner_size = learnts[i].size();
-
-        // Create an inner vector of Lits
-        vec<Lit> inner_vec;
-
-        // Translate each int element to Lit and add it to the inner vector
-        for (size_t j = 0; j < inner_size; ++j) {
-            int lit_value = learnts[i][j];
-            int var = abs(lit_value) - 1;
-            inner_vec.push((lit_value > 0) ? mkLit(var) : ~mkLit(var)); // Assuming 'push' method for adding elements
-        }
-
-        translation.push(inner_vec); // Add the inner vector to the outer vector
-    }
-
-    return translation;
-}
 
 
 
@@ -1468,7 +1446,25 @@ lbool Solver::search(int nof_conflicts) {
 
 // lk
 
-bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
+// Translate learned clauses from vec<int> to vec<Lit> and add them to the bddclauses vector
+void Solver::translateLearnts(vec<vec<int>>& learnt_clauses) {
+    for (size_t i = 0; i < learnt_clauses.size(); ++i) {
+        size_t lclause_size = learnt_clauses[i].size();
+
+        // Create the learnt_clause
+        vec<Lit> learnt_clause;
+
+        // Translate each int element to Lit and add it to the inner vector
+        for (size_t j = 0; j < lclause_size; ++j) {
+            int lit_value = learnt_clauses[i][j];
+            int var = abs(lit_value) - 1;
+            learnt_clause.push((lit_value > 0) ? mkLit(var) : ~mkLit(var)); // Assuming 'push' method for adding elements
+        }
+        addLearnts(learnt_clause);
+    }
+}
+
+bool Solver::addLearnts(vec<Lit>& learnt_clause) {
     if (learnt_clause.size() == 0)
         return false;
     else if (learnt_clause.size() == 1) {
@@ -1638,8 +1634,8 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
             rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, &learnts);
         });
 
-        vec<vec<Lit>>& translated_learnts = translate_learnts(learnts);
-        printf("c ============================\n",translated_learnts);
+        vec<vec<Lit>> translated_learnts;
+        translateLearnts(learnts);
 
         // Do other work in the main thread
         status = search(0); // the parameter is useless in glucose, kept to allow modifications

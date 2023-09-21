@@ -267,11 +267,6 @@ int     SimpSolver::getNbLearnt(){ return nLearnts(); }
 int     SimpSolver::getVal(int i){ return toInt(model[i]); }
 //end of gk
 
-// lk
-void    SimpSolver::cleanTmpLearntClauseVec() { add_tmp_learnt.clear();  }
-void    SimpSolver::addToTmpLearntClause(Lit p) { add_tmp_learnt.push(p); }
-bool    SimpSolver::addTmpLearntClause() { return Solver::addLearntClause(add_tmp_learnt); }
-
 void SimpSolver::removeClause(CRef cr,bool inPurgatory)
 {
     const Clause& c = ca[cr];

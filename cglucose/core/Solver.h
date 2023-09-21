@@ -442,7 +442,8 @@ protected:
     void     claBumpActivity  (Clause& c);             // Increase a clause with the current 'bump' value.
 
     // lk
-    bool    addLearntClause(vec<Lit> &learnt_clause);
+    void    translateLearnts(vec<vec<int>> &learnt_clauses);
+    bool    addLearnts(vec<Lit> &learnt_clause);
     void*   loadRustLibrary();
     void    unloadRustLibrary(void* rust_lib);
 
