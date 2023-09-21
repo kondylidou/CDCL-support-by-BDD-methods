@@ -61,15 +61,15 @@ pub extern "C" fn initialize_clause_database() -> *mut ClauseDatabase {
 }
 
 #[no_mangle]
-pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase) -> *mut Vec<Vec<i32>> { 
+pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase, learnts_ptr: *mut Vec<Vec<i32>>) { 
     // Safety: This is safe because we trust that the provided pointer is valid.
     let var_ordering = unsafe {&mut  *var_ordering_ptr };
     let buckets = unsafe {&mut *buckets_ptr };
     if buckets.is_empty() {
-        return std::ptr::null_mut();
+        return;
     }
     let clause_database = unsafe {&mut  *clause_database_ptr };
-    let mut learnts = Vec::new();
+    let mut learnts = {unsafe { &mut *learnts_ptr }};
     var_ordering.build(buckets, clause_database, &mut learnts);
-    Box::into_raw(Box::new(learnts))
+    println!("{:?}", learnts);
 }

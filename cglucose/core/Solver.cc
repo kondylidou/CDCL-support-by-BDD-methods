@@ -1448,6 +1448,7 @@ lbool Solver::search(int nof_conflicts) {
 
 // Translate learned clauses from vec<int> to vec<Lit> and add them to the bddclauses vector
 void Solver::translateLearnts(vec<vec<int>>& learnt_clauses) {
+    printf("c      clause size" "\n", learnt_clauses.size());
     for (size_t i = 0; i < learnt_clauses.size(); ++i) {
         size_t lclause_size = learnt_clauses[i].size();
 
