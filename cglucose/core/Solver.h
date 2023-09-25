@@ -380,8 +380,8 @@ protected:
     vec<Lit>            add_tmp;
 
     // lk
-    vec<Lit>            add_tmp_learnt;
-    vec<CRef>           bdd_clauses;        // List of received learnt clauses.
+    std::vector<int>    tmp_learnts;
+    std::vector<CRef>   bdd_clauses;        // List of received learnt clauses.
 
     //DR
     using BDDClauses = std::vector<vec<Lit>>;
@@ -389,9 +389,6 @@ protected:
 
     using BDDRefs = std::vector<CRef>;
     BDDRefs refs;
-
-    void addLearntClauseFromBDD(CRef&);
-    void iterateTroughBDDClauses();
 
     unsigned int  MYFLAG;
 
@@ -442,10 +439,14 @@ protected:
     void     claBumpActivity  (Clause& c);             // Increase a clause with the current 'bump' value.
 
     // lk
-    void    translateLearnts(vec<vec<int>> &learnt_clauses);
-    bool    addLearnts(vec<Lit> &learnt_clause);
-    void*   loadRustLibrary();
-    void    unloadRustLibrary(void* rust_lib);
+    bool     addLearntClause(vec<Lit> &learnt_clause);
+    void     translateLearntClauses(std::vector<int> learnt_clauses);
+    void*    loadRustLibrary();
+    void     unloadRustLibrary(void* rust_lib);
+
+    // D
+    void writeLearntClause(CRef);
+    void iterateTroughBDDClauses();
 
     //TimeControl
     void timeController(int timeframe);

@@ -65,15 +65,6 @@ using namespace Glucose;
 //=================================================================================================
 // Options:
 
-extern "C" {
-    BddBuckets* create_buckets(BddVarOrdering* ptr);
-    BddClauseDatabase* initialize_clause_database();
-    void rust_run(BddVarOrdering* ptr,  BddBuckets* buckets, BddClauseDatabase* database, vec<vec<int>>* learnts);
-}
-
-
-
-
 static const char* _cat = "CORE";
 static const char* _cr = "CORE -- RESTART";
 static const char* _cred = "CORE -- REDUCE";
@@ -400,6 +391,10 @@ bool Solver::addClause_(vec<Lit>& ps) {
 
 void Solver::attachClause(CRef cr) {
     const Clause& c = ca[cr];
+
+    if(cr == 840){
+        std::cout<<c.size()<< std::endl;
+    }
 
     assert(c.size() > 1);
     if (c.size() == 2) {
@@ -1446,37 +1441,44 @@ lbool Solver::search(int nof_conflicts) {
 
 // lk
 
-// Translate learned clauses from vec<int> to vec<Lit> and add them to the bddclauses vector
-void Solver::translateLearnts(vec<vec<int>>& learnt_clauses) {
-    printf("c      clause size" "\n", learnt_clauses.size());
-    for (size_t i = 0; i < learnt_clauses.size(); ++i) {
-        size_t lclause_size = learnt_clauses[i].size();
 
-        // Create the learnt_clause
-        vec<Lit> learnt_clause;
+// Translate learned clauses from std::vector<int> to vec<Lit> and add them to Glucose
+void Solver::translateLearntClauses(std::vector<int> learnt_clauses) {
+    vec<Lit> tmp_clause; // Create a vector to hold the current clause
 
-        // Translate each int element to Lit and add it to the inner vector
-        for (size_t j = 0; j < lclause_size; ++j) {
-            int lit_value = learnt_clauses[i][j];
-            int var = abs(lit_value) - 1;
-            learnt_clause.push((lit_value > 0) ? mkLit(var) : ~mkLit(var)); // Assuming 'push' method for adding elements
+    for (int i = 0; i < learnt_clauses.size(); ++i) {
+        int lit = learnt_clauses[i];
+
+        if (lit == 0) {
+            // If 0 is encountered, finalize the current clause and start a new one
+            if (tmp_clause.size() > 0) {
+                addLearntClause(tmp_clause);
+                tmp_clause.clear();
+                printf("Wrote clause %ld in BDD clauses.\n", i);
+            }
+        } else {
+            // Add the translated literal to the current clause
+            int var = abs(lit) - 1;
+            tmp_clause.push((lit > 0) ? mkLit(var) : ~mkLit(var));
         }
-        addLearnts(learnt_clause);
     }
 }
 
-bool Solver::addLearnts(vec<Lit>& learnt_clause) {
+// Add the learnt clauses as a reference to the BDD clauses vector
+bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
     if (learnt_clause.size() == 0)
         return false;
     else if (learnt_clause.size() == 1) {
         nbUn++;
         uncheckedEnqueue(learnt_clause[0]);
-        return true;
     } else {
-        CRef cr = ca.alloc(learnt_clause, true);
-        bdd_clauses.push(cr);
+        CRef cr = ca.alloc(learnt_clause, true);                
+        ca[cr].setLBD(3);
+        ca[cr].setOneWatched(false);
+		ca[cr].setSizeWithoutSelectors(learnt_clause.size());
+        
+        bdd_clauses.emplace_back(cr);
     }
-
     return true;
 }
 
@@ -1500,30 +1502,28 @@ void Solver::unloadRustLibrary(void* rust_lib) {
 /************************************************************************************/
 
 
-//Adds all necessary to the clause, so we can add it to the learnts and add it to the solver
-void Solver::addLearntClauseFromBDD(CRef& c){
-    Clause& clause = ca[c];
-    clause.setLBD(3);
-    clause.setCanBeDel(false); //Not sure if thats right 
-    clause.setSizeWithoutSelectors(clause.size());
-    clause.setOneWatched(false);
-
-    learnts.push(c);
-    attachClause(c);
-    claBumpActivity(clause);
+// Writes learnt clause from the BDD vector to the learnt clauses vector
+void Solver::writeLearntClause(CRef cr){
+    learnts.push(cr);
+    attachClause(cr);
+    lastLearntClause = cr; // Use in multithread (to hard to put inside ParallelSolver)
+    parallelExportClauseDuringSearch(ca[cr]);
+    claBumpActivity(ca[cr]);
 }
 
-//Iterates trough the bddClauses Vector of vectors and performs the action to add the lit
-//to the learnts
+// Iterates trough the bddClauses vector and performs the action to add the lit to the learnts
 void Solver::iterateTroughBDDClauses(){
     int learntClausesSize = bdd_clauses.size();
 
     for(int i = 0; i < learntClausesSize; i++){
-        CRef& currentRef = bdd_clauses[i];
-        addLearntClauseFromBDD(currentRef);
+        CRef currentRef = bdd_clauses[i];
+        writeLearntClause(currentRef);
         Clause& clause = ca[bdd_clauses[i]];
-        Lit& p = clause[0];
+        Lit p = clause[0];
+        printf("Lit p %d to Glucose.\n", p);
         uncheckedEnqueue(p, currentRef);
+        printf("Lit p %d to Glucose.\n", p);
+        printf("Attached clause %d to Glucose.\n", i);
     }
 }
 
@@ -1573,14 +1573,15 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     printf("Can not use incremental and certified unsat in the same time\n");
     exit(-1);
   }
-
     // Load the Rust library
     void* rust_lib = loadRustLibrary();
 
     // Get a pointer to the Rust functions
     auto create_bdd_buckets = reinterpret_cast<BddBuckets*(*)(BddVarOrdering*)>(dlsym(rust_lib, "create_buckets"));
     auto initialize_bdd_clause_database = reinterpret_cast<BddClauseDatabase*(*)()>(dlsym(rust_lib, "initialize_clause_database"));
-    auto rust_run = reinterpret_cast<void(*)(BddVarOrdering*, BddBuckets*, BddClauseDatabase*, vec<vec<int>>*)>(dlsym(rust_lib, "run"));
+    
+    typedef std::pair<const int*, size_t> (*RustTouple)(BddVarOrdering*, BddBuckets*, BddClauseDatabase*);
+    RustTouple rust_run = reinterpret_cast<RustTouple>(dlsym(rust_lib, "run"));
 
     if (!create_bdd_buckets || !initialize_bdd_clause_database || !rust_run) {
         std::cerr << "Error loading Rust function: " << dlerror() << std::endl;
@@ -1627,16 +1628,36 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     int curr_restarts = 0;
     while (status == l_Undef){
         
-        // Create a vector of vectors of ints
-        vec<vec<int>> learnts;
-
         // Call Rust function in a separate thread
-        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, &learnts]() {
-            rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, &learnts);
+        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, this]() {
+            
+            // Add the data from temp_learnts to learnts
+            auto rust_data = rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database);
+            const int* vector_data = std::get<0>(rust_data);
+            size_t vec_length = std::get<1>(rust_data);
+
+            std::cout<<"------------------------"<<std::endl;
+            std::cout<<vec_length<<std::endl;
+            std::cout<<"------------------------"<<std::endl;
+
+            std::vector<int> modifiedVectorFromRust(vector_data, vector_data + vec_length);
+            if(vector_data){
+                if (vec_length == 0) {
+                    printf("The vector of learnt clauses in Rust is empty.\n");
+                } else {
+                    this->tmp_learnts = modifiedVectorFromRust;
+                    printf("Created the vector of learnt clauses in Rust.\n");
+                }
+            } else {
+                printf("Failed to create the vector of learnt clauses in Rust.\n");
+            }
         });
 
-        vec<vec<Lit>> translated_learnts;
-        translateLearnts(learnts);
+        if(tmp_learnts.size() > 0) {
+            translateLearntClauses(tmp_learnts);
+            tmp_learnts.clear();
+            iterateTroughBDDClauses();
+        }
 
         // Do other work in the main thread
         status = search(0); // the parameter is useless in glucose, kept to allow modifications
