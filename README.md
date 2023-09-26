@@ -1,3 +1,38 @@
+# Project README
+
+This README provides instructions for installing the necessary dependencies for the project on a Linux system. The project requires Rust and Python, along with specific development libraries. 
+
+## Installation Instructions
+
+Please follow the steps below to set up the required environment on your Linux system:
+
+```bash
+# 1. Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 2. Install Rust Build Essentials
+sudo apt-get install build-essential
+
+# 3. Install Additional Dependencies
+sudo apt-get update
+sudo apt-get install wget libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev
+
+# 4. Install Python 3.10
+sudo apt-get install python3.10
+
+# 5. Install Python Development Tools
+sudo apt-get install python3-dev
+```
+
+### Verify Installation
+
+To verify that all the necessary components have been installed correctly, you can run the following commands:
+```bash
+rustc --version
+python3 --version
+```
+
+
 # CDCL support by BDD methods
 The projects' second phase is to use the BDD library as pre-/inprocessing in order to support the CDCL process and improve the results already acquired from phase one of this project.
 
