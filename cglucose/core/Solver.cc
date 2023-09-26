@@ -1363,6 +1363,14 @@ lbool Solver::search(int nof_conflicts) {
                 if (nblevels <= 2) nbDL2++; // stats
                 if (ca[cr].size() == 2) nbBin++; // stats
                 learnts.push(cr);
+
+                // -------------------------------------------
+                for (int i=0; i<learnt_clause.size(); i++) {
+                    internal_learnts.emplace_back(learnt_clause[i]);
+                }
+                internal_learnts.emplace_back(0);
+                // -------------------------------------------
+                
                 attachClause(cr);
                 lastLearntClause = cr; // Use in multithread (to hard to put inside ParallelSolver)
                 parallelExportClauseDuringSearch(ca[cr]);
@@ -1521,7 +1529,7 @@ void Solver::iterateTroughBDDClauses(){
         Clause& clause = ca[bdd_clauses[i]];
         Lit p = clause[0];
         printf("Lit p %d to Glucose.\n", p);
-        uncheckedEnqueue(p, currentRef);
+        //uncheckedEnqueue(p, currentRef);
         printf("Lit p %d to Glucose.\n", p);
         printf("Attached clause %d to Glucose.\n", i);
     }
@@ -1580,7 +1588,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     auto create_bdd_buckets = reinterpret_cast<BddBuckets*(*)(BddVarOrdering*)>(dlsym(rust_lib, "create_buckets"));
     auto initialize_bdd_clause_database = reinterpret_cast<BddClauseDatabase*(*)()>(dlsym(rust_lib, "initialize_clause_database"));
     
-    typedef std::pair<const int*, size_t> (*RustTouple)(BddVarOrdering*, BddBuckets*, BddClauseDatabase*);
+    typedef std::pair<const int*, size_t> (*RustTouple)(BddVarOrdering*, BddBuckets*, BddClauseDatabase*, int*, size_t);;
     RustTouple rust_run = reinterpret_cast<RustTouple>(dlsym(rust_lib, "run"));
 
     if (!create_bdd_buckets || !initialize_bdd_clause_database || !rust_run) {
@@ -1627,12 +1635,15 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     // Search:
     int curr_restarts = 0;
     while (status == l_Undef){
-        
+
+        size_t iLearntsSize = learnts.size();
+        int* iLearntsPtr = internal_learnts.data();
+
         // Call Rust function in a separate thread
-        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, this]() {
+        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsSize, iLearntsPtr, this]() {
             
             // Add the data from temp_learnts to learnts
-            auto rust_data = rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database);
+            auto rust_data = rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsPtr, iLearntsSize);
             const int* vector_data = std::get<0>(rust_data);
             size_t vec_length = std::get<1>(rust_data);
 

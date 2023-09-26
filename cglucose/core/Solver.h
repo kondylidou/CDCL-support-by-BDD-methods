@@ -381,6 +381,7 @@ protected:
 
     // lk
     std::vector<int>    tmp_learnts;
+    std::vector<int>    internal_learnts;
     std::vector<CRef>   bdd_clauses;        // List of received learnt clauses.
 
     //DR
