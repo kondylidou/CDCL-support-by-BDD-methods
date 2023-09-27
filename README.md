@@ -1,3 +1,99 @@
+# Project README
+
+This README provides instructions for installing the necessary dependencies for the project on a Linux system. The project requires Rust and Python, along with specific development libraries. 
+It contains instructions on how to build and run the project. Follow these steps to execute the project successfully.
+
+# Installation Instructions
+
+Please follow the steps below to set up the required environment on your Linux system:
+
+```bash
+# 1. Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 2. Install Rust Build Essentials
+sudo apt-get install build-essential
+
+# 3. Install Additional Dependencies
+sudo apt-get update
+sudo apt-get install wget libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev
+
+# 4. Install Python 3.10
+sudo apt-get install python3.10
+
+# 5. Install Python Development Tools
+sudo apt-get install python3-dev
+```
+
+## Verify Installation
+
+To verify that all the necessary components have been installed correctly, you can run the following commands:
+```bash
+rustc --version
+python3 --version
+```
+
+# Execution Instructions
+
+## Prerequisites
+
+Before running the project, make sure you have the following prerequisites installed on your system:
+
+- Rust: Install Rust and its build tools by following the instructions mentioned in above.
+- `cargo`: Rust's package manager, should be available after installing Rust.
+
+## Building the Project
+
+1. Open a terminal and navigate to the project's main folder.
+
+2. Build the Rust code using `cargo`:
+
+```bash
+cargo build --release
+```
+
+## Updating Library Paths
+
+You will need to update library paths in specific C++ source files. Follow these steps:
+
+1. Open the Main.cc file located in the cglucose/simp folder.
+
+2. Locate the line where the path to the Rust library (librust_lib.so) is specified. It might look like this:
+
+```bash
+// Change this path to the actual path of librust.so
+void* rust_lib = dlopen("/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+```
+Replace /path/to/target/release/librust.so with the actual path to librust.so on your system.
+
+3. Save the changes to Main.cc.
+
+4. Similarly, open the Solver.cc file located in the cglucose/core folder and update the path to librust_lib.so as done in step 2.
+
+## Building the C++ Component
+
+1. Navigate to the cglucose/simp folder in your terminal:
+
+```bash
+cd cglucose/simp
+```
+
+2. Compile the C++ code:
+
+```bash
+make clean
+make
+```
+
+##Running the Project
+
+1. After successfully building the C++ component, execute the project:
+
+```bash
+./glucose r
+```
+
+
 # CDCL support by BDD methods
 The projects' second phase is to use the BDD library as pre-/inprocessing in order to support the CDCL process and improve the results already acquired from phase one of this project.
 
