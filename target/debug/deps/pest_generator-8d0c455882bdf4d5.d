@@ -1,0 +1,10 @@
+/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/debug/deps/pest_generator-8d0c455882bdf4d5.rmeta: /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/lib.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/macros.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/docs.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/generator.rs
+
+/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/debug/deps/libpest_generator-8d0c455882bdf4d5.rlib: /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/lib.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/macros.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/docs.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/generator.rs
+
+/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/debug/deps/pest_generator-8d0c455882bdf4d5.d: /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/lib.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/macros.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/docs.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/generator.rs
+
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/lib.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/macros.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/docs.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pest_generator-2.7.2/src/generator.rs:

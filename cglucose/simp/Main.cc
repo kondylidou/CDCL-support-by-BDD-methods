@@ -86,7 +86,7 @@ extern "C" {
 BddVarOrdering*  init_rust(const char* filePath) {
     
     // Load the Rust dynamic library
-    void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+    void* rust_lib = dlopen("/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
 
     if (!rust_lib) {
         std::cerr << "Failed to load the Rust library: " << dlerror() << std::endl;

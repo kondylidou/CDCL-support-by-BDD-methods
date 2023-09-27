@@ -64,7 +64,7 @@ pub extern "C" fn initialize_clause_database() -> *mut ClauseDatabase {
 }
 
 #[no_mangle]
-pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase) -> (*const i32, usize) { 
+pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut Vec<Bucket>, clause_database_ptr: *mut ClauseDatabase, glearnts_ptr: *const i32, glearnts_size: usize) -> (*const i32, usize) { 
     // Safety: This is safe because we trust that the provided pointer is valid.
     let var_ordering = unsafe {&mut  *var_ordering_ptr };
     let buckets = unsafe {&mut *buckets_ptr };
@@ -97,6 +97,11 @@ pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut V
     std::mem::forget(learnts_conversion); // Prevent Rust from cleaning up the memory
     ptr
 */
+
+    let glearnts: &[i32] = unsafe { slice::from_raw_parts(glearnts_ptr, glearnts_size) };
+    let leanrts_from_glucose: Vec<i32> = glearnts.to_vec();
+
+    println!("learnt_test_from_glucose{:?}", leanrts_from_glucose);
 
     let mut learnts_conversion: Vec<i32> = Vec::new();
     for learnt in learnts {

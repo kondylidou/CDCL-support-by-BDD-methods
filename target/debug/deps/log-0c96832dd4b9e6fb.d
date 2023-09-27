@@ -1,0 +1,12 @@
+/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/debug/deps/log-0c96832dd4b9e6fb.rmeta: /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/lib.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/macros.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/serde.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/mod.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/error.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/key.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/source.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/value.rs
+
+/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/debug/deps/log-0c96832dd4b9e6fb.d: /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/lib.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/macros.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/serde.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/mod.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/error.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/key.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/source.rs /home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/value.rs
+
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/lib.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/macros.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/serde.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/mod.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/error.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/key.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/source.rs:
+/home/lkondylidou/.cargo/registry/src/index.crates.io-6f17d22bba15001f/log-0.4.19/src/kv/value.rs:

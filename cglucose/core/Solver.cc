@@ -1365,10 +1365,10 @@ lbool Solver::search(int nof_conflicts) {
                 learnts.push(cr);
 
                 // -------------------------------------------
-                for (int i=0; i<learnt_clause.size(); i++) {
-                    internal_learnts.emplace_back(learnt_clause[i]);
-                }
-                internal_learnts.emplace_back(0);
+                //for (int i=0; i<learnt_clause.size(); i++) {
+                    //internal_learnts.emplace_back(learnt_clause[i]);
+                //}
+                //internal_learnts.emplace_back(0);
                 // -------------------------------------------
                 
                 attachClause(cr);
@@ -1462,7 +1462,7 @@ void Solver::translateLearntClauses(std::vector<int> learnt_clauses) {
             if (tmp_clause.size() > 0) {
                 addLearntClause(tmp_clause);
                 tmp_clause.clear();
-                printf("Wrote clause %ld in BDD clauses.\n", i);
+                printf("Wrote clause %d in BDD clauses.\n", i);
             }
         } else {
             // Add the translated literal to the current clause
@@ -1492,7 +1492,7 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
 
 // Load the Rust library
 void* Solver::loadRustLibrary() {
-    void* rust_lib = dlopen("/home/user/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+    void* rust_lib = dlopen("/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
     if (!rust_lib) {
         std::cerr << "Error loading Rust library: " << dlerror() << std::endl;
         return NULL;
@@ -1528,9 +1528,7 @@ void Solver::iterateTroughBDDClauses(){
         writeLearntClause(currentRef);
         Clause& clause = ca[bdd_clauses[i]];
         Lit p = clause[0];
-        printf("Lit p %d to Glucose.\n", p);
         //uncheckedEnqueue(p, currentRef);
-        printf("Lit p %d to Glucose.\n", p);
         printf("Attached clause %d to Glucose.\n", i);
     }
 }
@@ -1632,15 +1630,21 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
       printf("c =========================================================================================================\n");
     }
 
+    // add a test clause
+    internal_learnts.push_back(8);
+    internal_learnts.push_back(3);
+    internal_learnts.push_back(35);
+    internal_learnts.push_back(35);
+    internal_learnts.push_back(0);
+    size_t iLearntsSize = internal_learnts.size();
+    int* iLearntsPtr = internal_learnts.data();
+
     // Search:
     int curr_restarts = 0;
     while (status == l_Undef){
 
-        size_t iLearntsSize = learnts.size();
-        int* iLearntsPtr = internal_learnts.data();
-
         // Call Rust function in a separate thread
-        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsSize, iLearntsPtr, this]() {
+        std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsPtr, iLearntsSize, this]() {
             
             // Add the data from temp_learnts to learnts
             auto rust_data = rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsPtr, iLearntsSize);
