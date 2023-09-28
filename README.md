@@ -14,14 +14,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # 2. Install Rust Build Essentials
 sudo apt-get install build-essential
 
-# 3. Install Additional Dependencies
-sudo apt-get update
-sudo apt-get install wget libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev
-
-# 4. Install Python 3.10
+# 3. Install Python 3.10
 sudo apt-get install python3.10
 
-# 5. Install Python Development Tools
+# 4. Install Python Development Tools
 sudo apt-get install python3-dev
 ```
 
