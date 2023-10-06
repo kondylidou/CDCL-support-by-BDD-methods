@@ -173,6 +173,42 @@ impl BddVarOrdering {
         }
     }    
 
+    pub fn build_one(&mut self, bucket: &Bucket, clause_database: &mut ClauseDatabase, filtered_clauses: &mut Vec<Vec<i32>>) -> Option<Vec<Bucket>> {
+        let threshold = 30;
+
+        // build the initial bdd from the first clause in the bucket
+        let mut bdd = bucket.clauses[0].to_bdd(&self.variables, &self.ordering);
+            
+        let mut n = 1;
+        while n < bucket.clauses.len() {
+            // build the final bdd from the rest of the buckets clauses by applying 
+            // the and operation between the temp bdds. 
+            let temp_bdd = bucket.clauses[n].to_bdd(&self.variables, &self.ordering);
+            bdd = bdd.and(&temp_bdd, &self.ordering);
+
+            // If the BDD is becoming too big, it means that we have reached the large buckets.
+            // At this point, we will reorder the variables based on interactions and
+            // subdivide the bucket into smaller buckets.
+            if bdd.size() > threshold {
+                // if the variable ordering hasn't been updated yet, we update it
+                // based on interactions and partially roerdered the already partially
+                // constructed bdd based on the new variable ordering. We only rearrange 
+                // the bdd nodes based on the affected variables.
+                let affected_vars = self.create_interaction_based_ordering();
+                bdd.partial_reorder_bdd(&affected_vars, &self.ordering);
+                
+                // we will also split the large bucket into smaller ones and add them to the buckets set.
+                return Some(self.group_clauses_into_buckets_interactions(&bucket.clauses));
+            }
+            n += 1;
+        }
+        // get the temp learnt clauses from the bucket
+        let temp_learnts = bdd.build_learned_clause(&bdd.get_conflict_paths());
+        filtered_clauses.extend(clause_database.get_filtered_clauses(temp_learnts));
+
+        None
+    }    
+
     pub fn build_bdd(&self) -> Bdd {
         let mut bdd = self.expressions[0].to_bdd(&self.variables, &self.ordering);
         let mut n = 1;

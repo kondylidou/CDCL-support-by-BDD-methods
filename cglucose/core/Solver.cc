@@ -1477,14 +1477,13 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
     if (learnt_clause.size() == 0)
         return false;
     else if (learnt_clause.size() == 1) {
-        nbUn++;
         uncheckedEnqueue(learnt_clause[0]);
     } else {
         CRef cr = ca.alloc(learnt_clause, true);                
         ca[cr].setLBD(3);
         ca[cr].setOneWatched(false);
 		ca[cr].setSizeWithoutSelectors(learnt_clause.size());
-        
+        attachClause(cr);
         bdd_clauses.emplace_back(cr);
     }
     return true;
@@ -1529,7 +1528,6 @@ void Solver::iterateTroughBDDClauses(){
         Clause& clause = ca[bdd_clauses[i]];
         Lit p = clause[0];
         //uncheckedEnqueue(p, currentRef);
-        printf("Attached clause %d to Glucose.\n", i);
     }
 }
 
@@ -1643,9 +1641,32 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     int curr_restarts = 0;
     while (status == l_Undef){
 
+        // Do other work in the main thread
+        status = search(0); // the parameter is useless in glucose, kept to allow modifications
+        if (!withinBudget()) break;
+        curr_restarts++;
+
+        // lk
+
+    // Call Rust 
+
+    // Get a pointer to the Rust functions
+    auto stop_rust_function = reinterpret_cast<void*(*)()>(dlsym(rust_lib, "stop_rust_function"));
+    auto continue_rust_function = reinterpret_cast<void*(*)()>(dlsym(rust_lib, "continue_rust_function"));
+
+    if (!stop_rust_function || !continue_rust_function) {
+        std::cerr << "Error loading Rust function: " << dlerror() << std::endl;
+        dlclose(rust_lib);
+        return l_False;
+    }
+
+    if(tmp_learnts.size() > 0) {
+        translateLearntClauses(tmp_learnts);
+        tmp_learnts.clear();
+    } else {
         // Call Rust function in a separate thread
         std::thread rust_thread([rust_run, bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsPtr, iLearntsSize, this]() {
-            
+                
             // Add the data from temp_learnts to learnts
             auto rust_data = rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsPtr, iLearntsSize);
             const int* vector_data = std::get<0>(rust_data);
@@ -1668,21 +1689,11 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
             }
         });
 
-        if(tmp_learnts.size() > 0) {
-            translateLearntClauses(tmp_learnts);
-            tmp_learnts.clear();
-            iterateTroughBDDClauses();
-        }
-
-        // Do other work in the main thread
-        status = search(0); // the parameter is useless in glucose, kept to allow modifications
-        if (!withinBudget()) break;
-        curr_restarts++;
-
         // Wait for the Rust thread to finish
         rust_thread.join();
-
+        }
     }
+
 
     if (!incremental && verbosity >= 1)
       printf("c =========================================================================================================\n");

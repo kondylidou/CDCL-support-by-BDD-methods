@@ -6,6 +6,10 @@ use std::slice;
 use std::usize;
 
 use crate::{parser, variable_ordering::{var_ordering::BddVarOrdering, bucket::Bucket}, sharing::clause_database::ClauseDatabase};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+
+static SHOULD_STOP: AtomicBool = AtomicBool::new(false);
 
 #[no_mangle]
 pub extern "C" fn init(path: *const c_char) -> *mut BddVarOrdering {
@@ -72,36 +76,52 @@ pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut V
         return (std::ptr::null(),0);
     }
     let clause_database = unsafe {&mut  *clause_database_ptr };
-    let mut learnts = Vec::new();
-    var_ordering.build(buckets, clause_database, &mut learnts);
-    println!("tmp_learnts in rust size {:?}", learnts.len());
-
-    // we need to safely convert the vector of learnt clauses to a convertible data structure in C
-    // as we cannot pass the whole vector of vectors (clauses are represented as vectors of integers)
-    // we re convert the clauses in the format they were in the initial cnf file, with the zeros
-    // defining the gap between each close.
-
-    /* 
-    for learnt in learnts {
-        for lit in learnt {
-            learnts_conversion.push(lit);
-        }
-        learnts_conversion.push(0);
-    }
-   
-    println!("learnts in rust size {:?}", learnts_conversion.len());
-    
-    learnts_conversion.shrink_to_fit(); // Ensure minimal memory usage
-    // Convert the vector into a heap-allocated array and return a pointer
-    let ptr = learnts_conversion.as_mut_ptr();
-    std::mem::forget(learnts_conversion); // Prevent Rust from cleaning up the memory
-    ptr
-*/
 
     let glearnts: &[i32] = unsafe { slice::from_raw_parts(glearnts_ptr, glearnts_size) };
-    let leanrts_from_glucose: Vec<i32> = glearnts.to_vec();
+    let learnts_from_glucose: Vec<i32> = glearnts.to_vec();
 
-    println!("learnt_test_from_glucose{:?}", leanrts_from_glucose);
+    println!("learnt_test_from_glucose{:?}", learnts_from_glucose);
+
+    let mut learnts = Vec::new();
+    //should_continue();
+
+    // TODO do the comments for varol
+    // danail tests
+    // stop and continue from glucose
+    // check why this doesnt work
+    // check the threads
+    // check if buckets empty then dont continue bdd
+
+    let mut n = 10;
+    println!("learnt_test_from_glucose{:?}", buckets.len());
+
+    while n > 0 {
+        if let Some(bucket) = buckets.first() {
+            /*
+            // Check if we should stop after processing each learnt clause
+            if should_stop() {
+                let mut learnts_conversion: Vec<i32> = Vec::new();
+                for learnt in learnts {
+                    for lit in learnt {
+                        learnts_conversion.push(lit);
+                    }
+                    learnts_conversion.push(0);
+                }
+                let length = learnts_conversion.len();
+                let ptr = learnts_conversion.as_ptr();
+
+                return (ptr, length);
+            }
+            */
+            if let Some(new_buckets) = var_ordering.build_one(bucket, clause_database, &mut learnts) {
+                buckets.extend(new_buckets);
+            }
+            buckets.remove(0);
+        }
+        n -= 1;
+    }
+    //var_ordering.build(buckets, clause_database, &mut learnts);
+    //println!("tmp_learnts in rust size {:?}", learnts.len());
 
     let mut learnts_conversion: Vec<i32> = Vec::new();
     for learnt in learnts {
@@ -118,4 +138,26 @@ pub extern "C" fn run(var_ordering_ptr: *mut BddVarOrdering, buckets_ptr: *mut V
     std::mem::forget(learnts_conversion);
 
     (ptr,length)
+}
+
+// Function to check if the thread should stop
+fn should_stop() -> bool {
+    SHOULD_STOP.load(Ordering::Relaxed)
+}
+
+// Function to check if the thread should stop
+fn should_continue() {
+    SHOULD_STOP.store(false, Ordering::Relaxed);
+}
+
+// Function to signal the Rust code to stop
+#[no_mangle]
+pub extern "C" fn stop_rust_function() {
+    SHOULD_STOP.store(true, Ordering::Relaxed);
+}
+
+// Function to signal the Rust code to stop
+#[no_mangle]
+pub extern "C" fn continue_rust_function() {
+    SHOULD_STOP.store(false, Ordering::Relaxed);
 }

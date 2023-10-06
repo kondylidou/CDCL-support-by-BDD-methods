@@ -268,7 +268,7 @@ but for testing purpose it is made that simple. Future improvement will be done.
 
         const char* filePaths[] = {
             "sgen.cnf",      
-            "sgen.cnf"   
+            "/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/benchmarks/tests/sgp_6-6-10.sat05-2670.reshuffled-07.cnf"   
            // "fuhs-aprove-16.cnf"
         };
 
