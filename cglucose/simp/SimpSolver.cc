@@ -186,6 +186,7 @@ lbool SimpSolver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool tu
         result = lbool(eliminate(turn_off_simp));
     }
 
+
     if (result == l_True)
         result = Solver::solve_(bdd_var_ordering);
     else if (verbosity >= 1)
@@ -198,7 +199,6 @@ lbool SimpSolver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool tu
         // Unfreeze the assumptions that were frozen:
         for (int i = 0; i < extra_frozen.size(); i++)
             setFrozen(extra_frozen[i], false);
-
 
     return result;
 }
@@ -709,7 +709,10 @@ bool SimpSolver::eliminate(bool turn_off_elim)
     }
 
     while (toPerform && (n_touched > 0 || bwdsub_assigns < trail.size() || elim_heap.size() > 0)){
-
+        
+    if(ok == false){
+        return false;
+    }
         gatherTouchedClauses();
         // printf("  ## (time = %6.2f s) BWD-SUB: queue = %d, trail = %d\n", cpuTime(), subsumption_queue.size(), trail.size() - bwdsub_assigns);
         if ((subsumption_queue.size() > 0 || bwdsub_assigns < trail.size()) && 

@@ -391,11 +391,6 @@ bool Solver::addClause_(vec<Lit>& ps) {
 
 void Solver::attachClause(CRef cr) {
     const Clause& c = ca[cr];
-
-    if(cr == 840){
-        std::cout<<c.size()<< std::endl;
-    }
-
     assert(c.size() > 1);
     if (c.size() == 2) {
         watchesBin[~c[0]].push(Watcher(cr, c[1]));
@@ -1274,7 +1269,7 @@ bool Solver::simplify() {
 |    if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 |________________________________________________________________________________________________@*/
 lbool Solver::search(int nof_conflicts) {
-    assert(ok);
+    //assert(ok);
     int backtrack_level;
     int conflictC = 0;
     vec<Lit> learnt_clause, selectors;
@@ -1462,7 +1457,7 @@ void Solver::translateLearntClauses(std::vector<int> learnt_clauses) {
             if (tmp_clause.size() > 0) {
                 addLearntClause(tmp_clause);
                 tmp_clause.clear();
-                printf("Wrote clause %d in BDD clauses.\n", i);
+                //printf("Wrote clause %d in BDD clauses.\n", i);
             }
         } else {
             // Add the translated literal to the current clause
@@ -1491,7 +1486,7 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
 
 // Load the Rust library
 void* Solver::loadRustLibrary() {
-    void* rust_lib = dlopen("/home/lkondylidou/Desktop/PhD/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+    void* rust_lib = dlopen("/mnt/c/Abschlussarbeit/GitGLUCOSE/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
     if (!rust_lib) {
         std::cerr << "Error loading Rust library: " << dlerror() << std::endl;
         return NULL;
@@ -1515,7 +1510,7 @@ void Solver::writeLearntClause(CRef cr){
     attachClause(cr);
     lastLearntClause = cr; // Use in multithread (to hard to put inside ParallelSolver)
     parallelExportClauseDuringSearch(ca[cr]);
-    claBumpActivity(ca[cr]);
+    //claBumpActivity(ca[cr]);
 }
 
 // Iterates trough the bddClauses vector and performs the action to add the lit to the learnts
@@ -1672,20 +1667,20 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
             const int* vector_data = std::get<0>(rust_data);
             size_t vec_length = std::get<1>(rust_data);
 
-            std::cout<<"------------------------"<<std::endl;
-            std::cout<<vec_length<<std::endl;
-            std::cout<<"------------------------"<<std::endl;
+            // std::cout<<"------------------------"<<std::endl;
+            // std::cout<<vec_length<<std::endl;
+            // std::cout<<"------------------------"<<std::endl;
 
             std::vector<int> modifiedVectorFromRust(vector_data, vector_data + vec_length);
             if(vector_data){
                 if (vec_length == 0) {
-                    printf("The vector of learnt clauses in Rust is empty.\n");
+                   // printf("The vector of learnt clauses in Rust is empty.\n");
                 } else {
                     this->tmp_learnts = modifiedVectorFromRust;
-                    printf("Created the vector of learnt clauses in Rust.\n");
+                   // printf("Created the vector of learnt clauses in Rust.\n");
                 }
             } else {
-                printf("Failed to create the vector of learnt clauses in Rust.\n");
+               // printf("Failed to create the vector of learnt clauses in Rust.\n");
             }
         });
 

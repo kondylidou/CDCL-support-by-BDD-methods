@@ -255,7 +255,7 @@ public:
 
     using VecTuple = std::vector<std::tuple<uint64_t, double>>;
     using VecList = std::list<std::tuple<Solver::VecTuple, std::string>>;
-    using ListForInstances = std::list<std::tuple<VecList, std::string>>;
+    using ListForInstances = std::list<std::tuple<VecList, std::string, int, int, int, int, int, double, std::string>>;
 
     using BddClauses = std::list<std::vector<int>>;
 
@@ -274,7 +274,13 @@ public:
     VecTuple dec;
     VecTuple blockedRestarts;
 
-    //Variable dummy test einfügen, Vector von Literalen 
+    void changeStatus(bool status){
+        ok = status;
+    }
+
+    int longestClauseSizePreStart = 0;
+    int longestClauseSizeLearnts = 0;
+    
     
 /*
 **************************************************************
