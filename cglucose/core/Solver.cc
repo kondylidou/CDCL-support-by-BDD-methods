@@ -1584,7 +1584,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
         while(true){
         std::this_thread::sleep_for(std::chrono::seconds(1));        
         time++;
-         if(time >= 10){
+         if(time >= 900){
             this->timeLimitReached = true;
             std::cout<<"Limit reached"<<std::endl;
             std::cout<<timeLimitReached<<std::endl;
