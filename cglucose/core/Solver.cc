@@ -915,7 +915,7 @@ void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict) {
 }
 
 void Solver::uncheckedEnqueue(Lit p, CRef from) {
-    assert(value(p) == l_Undef);
+    //assert(value(p) == l_Undef);
     assigns[var(p)] = lbool(!sign(p));
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
@@ -1281,6 +1281,12 @@ lbool Solver::search(int nof_conflicts) {
     restarts.emplace_back(std::make_tuple(starts,cpuTime()));
     
     for (;;) {
+
+        if(timeLimitReached){
+            std::cout<< "UNDEF RETURNING"<<std::endl;
+            return l_Undef;
+        }
+
         if (decisionLevel() == 0) { // We import clauses FIXME: ensure that we will import clauses enventually (restart after some point)
             parallelImportUnaryClauses();
             
@@ -1448,7 +1454,7 @@ lbool Solver::search(int nof_conflicts) {
 // Translate learned clauses from std::vector<int> to vec<Lit> and add them to Glucose
 void Solver::translateLearntClauses(std::vector<int> learnt_clauses) {
     vec<Lit> tmp_clause; // Create a vector to hold the current clause
-
+    
     for (int i = 0; i < learnt_clauses.size(); ++i) {
         int lit = learnt_clauses[i];
 
@@ -1478,6 +1484,8 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
         ca[cr].setLBD(3);
         ca[cr].setOneWatched(false);
 		ca[cr].setSizeWithoutSelectors(learnt_clause.size());
+        //ca[cr].setCanBeDel(false);
+        learnts.push(cr);
         attachClause(cr);
         bdd_clauses.emplace_back(cr);
     }
@@ -1568,6 +1576,26 @@ void Solver::printIncrementalStats() {
 
 lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_off_simp) // Parameters are useless in core but useful for SimpSolver....
 {
+
+    //Timer here
+     int time = 0; 
+           
+        std::thread timer([&time, this](){
+        while(true){
+        std::this_thread::sleep_for(std::chrono::seconds(1));        
+        time++;
+         if(time >= 10){
+            this->timeLimitReached = true;
+            std::cout<<"Limit reached"<<std::endl;
+            std::cout<<timeLimitReached<<std::endl;
+            return l_Undef;
+                }
+            }    
+        });
+        timer.detach();
+
+
+
     if(incremental && certifiedUNSAT) {
     printf("Can not use incremental and certified unsat in the same time\n");
     exit(-1);
@@ -1624,17 +1652,15 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     }
 
     // add a test clause
-    internal_learnts.push_back(8);
-    internal_learnts.push_back(3);
-    internal_learnts.push_back(35);
-    internal_learnts.push_back(35);
     internal_learnts.push_back(0);
     size_t iLearntsSize = internal_learnts.size();
     int* iLearntsPtr = internal_learnts.data();
 
     // Search:
     int curr_restarts = 0;
-    while (status == l_Undef){
+    while (status == l_Undef && !timeLimitReached){
+
+
 
         // Do other work in the main thread
         status = search(0); // the parameter is useless in glucose, kept to allow modifications
@@ -1689,6 +1715,9 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
         }
     }
 
+    if(timeLimitReached == true){
+        return l_Undef;
+    }
 
     if (!incremental && verbosity >= 1)
       printf("c =========================================================================================================\n");

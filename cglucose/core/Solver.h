@@ -274,6 +274,8 @@ public:
     VecTuple dec;
     VecTuple blockedRestarts;
 
+    bool timeLimitReached = false; 
+
     void changeStatus(bool status){
         ok = status;
     }

@@ -282,16 +282,6 @@ int main(int argc, char **argv)
         but for testing purpose it is made that simple. Future improvement will be done.
         */
 
-        int size = sizeof(filePaths) / sizeof(filePaths[0]);
-
-        bool timeLimitReached = false;
-        // std::thread timer([&timeLimitReached]()
-        //                   {
-        // std::this_thread::sleep_for(std::chrono::seconds(15));
-        // std::cout << "Thread woke up after 4 seconds." << std::endl;
-        // timeLimitReached = true; });
-        // timer.detach();
-
         const char* pathToFiles = "/mnt/c/Abschlussarbeit/GitGLUCOSE/CDCL-support-by-BDD-methods/benchmarks/testFolder/";
 
         try {
@@ -299,7 +289,7 @@ int main(int argc, char **argv)
         if (filesystem::is_directory(pathToFiles)) {
         // Iterate through all files in the directory
         for (const auto & entry: filesystem::directory_iterator(pathToFiles)) {
-          if (filesystem::is_regular_file(entry)) {
+          if (std::filesystem::is_regular_file(entry)) {
             // Construct the full path as a string
             std::string fullPath = entry.path().string();
             // Convert the string to a const char* and add it to the vector
@@ -319,7 +309,6 @@ int main(int argc, char **argv)
         if (argc == 2)
         {
             // Loop trough the files and create a new solver for each file
-
             for (int i = 0; i < filePaths.size(); ++i)
             {
                 SimpSolver S = SimpSolver();
@@ -413,25 +402,19 @@ int main(int argc, char **argv)
                 vec<Lit> dummy;
                 lbool ret = S.solveLimited(bdd_var_ordering, dummy);
 
-                if (timeLimitReached)
-                {
-                    std::cout << "Time limit reached, current instance won't be counted" << std::endl;
-                    break;
-                }
-
                 if (S.verbosity > 0)
                 {
                     printStats(S);
                     printf("\n");
                 }
-                printf(ret == l_True ? "s SATISFIABLE\n" : ret == l_False ? "s UNSATISFIABLE\n"
-                                                                          : "s INDETERMINATE\n");
+                printf(ret == l_True ? "s SATISFIABLE\n" : ret == l_False ? "s UNSATISFIABLE\n" : "s INDETERMINATE\n");
                 std::filesystem::path pathObj(filePaths[i]);
                 std::string filenameWithoutExtension = pathObj.stem().string();
                 double timeUsed = cpuTime() - initial_time;
                 std::string boolVal = ret == l_True ? std::string("SAT") : ret == l_False ? std::string("UNSAT") : std::string("indeterminate");
                 saveToListAndCallPython(S, filenameWithoutExtension, clausesAtStart, varsAtStart, timeUsed, boolVal);
                 instances.emplace_back(i + 1, timeUsed);
+                
             }
             vectorToPython(lists);
             solvedInstances(instances);
