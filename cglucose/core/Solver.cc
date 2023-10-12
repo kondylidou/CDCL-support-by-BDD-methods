@@ -55,6 +55,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/Constants.h"
 #include "Solver.h"
 
+
+#include <chrono>
+
 #include <iostream>
 #include <thread>
 #include <cstring>
@@ -1282,11 +1285,6 @@ lbool Solver::search(int nof_conflicts) {
     
     for (;;) {
 
-        if(timeLimitReached){
-            std::cout<< "UNDEF RETURNING"<<std::endl;
-            return l_Undef;
-        }
-
         if (decisionLevel() == 0) { // We import clauses FIXME: ensure that we will import clauses enventually (restart after some point)
             parallelImportUnaryClauses();
             
@@ -1445,6 +1443,10 @@ lbool Solver::search(int nof_conflicts) {
             uncheckedEnqueue(next);
 
         }
+        if(timeLimitReached){
+            std::cout<< "UNDEF RETURNING"<<std::endl;
+            return l_Undef;
+        }
     }
 }
 
@@ -1566,35 +1568,32 @@ void Solver::printIncrementalStats() {
     printf("c decisions             : %" PRIu64"\n", decisions);
     printf("c propagations          : %" PRIu64"\n", propagations);
 
-  printf("\nc SAT Calls             : %d in %g seconds\n",nbSatCalls,totalTime4Sat);
-  printf("c UNSAT Calls           : %d in %g seconds\n",nbUnsatCalls,totalTime4Unsat);
+    printf("\nc SAT Calls             : %d in %g seconds\n",nbSatCalls,totalTime4Sat);
+    printf("c UNSAT Calls           : %d in %g seconds\n",nbUnsatCalls,totalTime4Unsat);
 
     printf("c--------------------------------------------------\n");
 }
 
-// NOTE: assumptions passed in member-variable 'assumptions'.
+
 
 lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_off_simp) // Parameters are useless in core but useful for SimpSolver....
 {
+    std::thread	timer([this]{
+        for(int i = 0; i < this->time;i++){
+            if(closeThread){
+                break;
+            }
+             std::this_thread::sleep_for(std::chrono::seconds(1));
+             if(closeThread){
+                break;
+            }
+            std::cout<<i<<std::endl;
+        }
 
-    //Timer here
-     int time = 0; 
-           
-        std::thread timer([&time, this](){
-        while(true){
-        std::this_thread::sleep_for(std::chrono::seconds(1));        
-        time++;
-         if(time >= 900){
+        if(!closeThread){
             this->timeLimitReached = true;
-            std::cout<<"Limit reached"<<std::endl;
-            std::cout<<timeLimitReached<<std::endl;
-            return l_Undef;
-                }
-            }    
-        });
-        timer.detach();
-
-
+        }
+    });
 
     if(incremental && certifiedUNSAT) {
     printf("Can not use incremental and certified unsat in the same time\n");
@@ -1613,6 +1612,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     if (!create_bdd_buckets || !initialize_bdd_clause_database || !rust_run) {
         std::cerr << "Error loading Rust function: " << dlerror() << std::endl;
         dlclose(rust_lib);
+        closeThread = true;
         return l_False;
     }
 
@@ -1659,13 +1659,11 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     // Search:
     int curr_restarts = 0;
     while (status == l_Undef && !timeLimitReached){
-
-
-
         // Do other work in the main thread
         status = search(0); // the parameter is useless in glucose, kept to allow modifications
         if (!withinBudget()) break;
         curr_restarts++;
+
 
         // lk
 
@@ -1678,6 +1676,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     if (!stop_rust_function || !continue_rust_function) {
         std::cerr << "Error loading Rust function: " << dlerror() << std::endl;
         dlclose(rust_lib);
+        closeThread = true;
         return l_False;
     }
 
@@ -1714,8 +1713,11 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
         rust_thread.join();
         }
     }
+    timer.join();
+
 
     if(timeLimitReached == true){
+        closeThread = true;
         return l_Undef;
     }
 
@@ -1741,6 +1743,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     cancelUntil(0);
 
 
+
     double finalTime = cpuTime();
     if(status==l_True) {
         nbSatCalls++; 
@@ -1754,8 +1757,8 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
     // Unload the Rust library
     unloadRustLibrary(rust_lib);
 
+    closeThread = true;
     return status;
-
 }
 
 

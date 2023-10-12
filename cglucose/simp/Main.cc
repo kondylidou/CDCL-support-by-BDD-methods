@@ -397,7 +397,6 @@ int main(int argc, char **argv)
                         printStats(S);
                     exit(0);
                 }
-
                 BddVarOrdering *bdd_var_ordering = init_rust(filePath);
                 vec<Lit> dummy;
                 lbool ret = S.solveLimited(bdd_var_ordering, dummy);
@@ -414,7 +413,6 @@ int main(int argc, char **argv)
                 std::string boolVal = ret == l_True ? std::string("SAT") : ret == l_False ? std::string("UNSAT") : std::string("indeterminate");
                 saveToListAndCallPython(S, filenameWithoutExtension, clausesAtStart, varsAtStart, timeUsed, boolVal);
                 instances.emplace_back(i + 1, timeUsed);
-                
             }
             vectorToPython(lists);
             solvedInstances(instances);
@@ -426,4 +424,5 @@ int main(int argc, char **argv)
         printf("INDETERMINATE\n");
         exit(0);
     }
+    
 }

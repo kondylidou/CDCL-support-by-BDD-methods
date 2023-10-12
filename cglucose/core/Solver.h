@@ -63,6 +63,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <tuple>
 #include <vector>
 
+#include <atomic>
+#include <future>
+
 typedef struct BddVarOrdering BddVarOrdering;
 typedef struct BddBuckets BddBuckets;
 typedef struct BddClauseDatabase BddClauseDatabase;
@@ -275,6 +278,10 @@ public:
     VecTuple blockedRestarts;
 
     bool timeLimitReached = false; 
+    int time = 900;
+    bool closeThread = false;
+
+
 
     void changeStatus(bool status){
         ok = status;
@@ -283,7 +290,8 @@ public:
     int longestClauseSizePreStart = 0;
     int longestClauseSizeLearnts = 0;
     
-    
+
+
 /*
 **************************************************************
 **************************************************************
