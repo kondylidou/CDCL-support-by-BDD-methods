@@ -1713,6 +1713,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
         rust_thread.join();
         }
     }
+    closeThread = true;
     timer.join();
 
 
