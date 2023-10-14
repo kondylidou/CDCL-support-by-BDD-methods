@@ -184,7 +184,7 @@ static Solver::ListForInstances lists;
 std::vector<std::tuple<int, double>> instances;
 
 // TODO: anzahl an klauseln am anfang und ende
-void saveToListAndCallPython(Solver & S, std::string instanceName, int clausesStart, int varsAtStart, double cpuTime, std::string boolVal) {
+void saveToList(Solver & S, std::string instanceName, int clausesStart, int varsAtStart, double cpuTime, std::string boolVal) {
 
   S.vecList.emplace_back(std::make_tuple(S.restarts, "$restarts"));
   S.vecList.emplace_back(std::make_tuple(S.conf, "$conflicts"));
@@ -309,7 +309,7 @@ int main(int argc, char **argv)
         if (argc == 2)
         {
             // Loop trough the files and create a new solver for each file
-            for (int i = 0; i < filePaths.size(); ++i)
+            for (int i = 0; i < 30; ++i)
             {
                 SimpSolver S = SimpSolver();
                 double initial_time = cpuTime();
@@ -397,6 +397,7 @@ int main(int argc, char **argv)
                         printStats(S);
                     exit(0);
                 }
+                std::cout<<"Currently solving : " << i << filePath<<std::endl;
                 BddVarOrdering *bdd_var_ordering = init_rust(filePath);
                 vec<Lit> dummy;
                 lbool ret = S.solveLimited(bdd_var_ordering, dummy);
@@ -411,8 +412,15 @@ int main(int argc, char **argv)
                 std::string filenameWithoutExtension = pathObj.stem().string();
                 double timeUsed = cpuTime() - initial_time;
                 std::string boolVal = ret == l_True ? std::string("SAT") : ret == l_False ? std::string("UNSAT") : std::string("indeterminate");
-                saveToListAndCallPython(S, filenameWithoutExtension, clausesAtStart, varsAtStart, timeUsed, boolVal);
+                saveToList(S, filenameWithoutExtension, clausesAtStart, varsAtStart, timeUsed, boolVal);
                 instances.emplace_back(i + 1, timeUsed);
+
+                if(i % 2 == 0){
+                    std::cout<<"Saving 10 results..."<<std::endl;
+                    vectorToPython(lists);
+                    lists.clear();
+                    std::cout<<"List size: " << lists.size()<<std::endl;
+                }
             }
             vectorToPython(lists);
             solvedInstances(instances);
