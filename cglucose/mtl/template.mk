@@ -19,16 +19,16 @@ RCOBJS     = $(addsuffix r,  $(COBJS))
 
 #CXX        ?= /usr/gcc-/bin/g++-4.7.0
 CXX       ?= g++
-CFLAGS    ?= -Wall -Wno-parentheses -std=c++11 -I/usr/include/python3.10
-LFLAGS    ?= -Wall -lpthread -L/mnt/c/Python311/libs -lpython3.10
+CFLAGS    ?= -Wall -Wno-parentheses -std=c++17 -I/usr/include/python3.11 -I/lib/x86_64-linux-gnu/libdl.so -std=gnu++17
+LFLAGS    ?= -Wall -lpthread -L/mnt/c/Python311/libs -lpython3.11 -L/lib/x86_64-linux-gnu/libdl.so -ldl
 
 COPTIMIZE ?= -O3
 
 CFLAGS    += -I$(MROOT) -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
 LFLAGS    += -lz
 
-PYTHON_CFLAGS := -I/usr/include/python3.10
-PYTHON_LDFLAGS := -L/mnt/c/Python311/libs -lpython3.10
+PYTHON_CFLAGS := -I/usr/include/python3.11
+PYTHON_LDFLAGS := -L/mnt/c/Python311/libs -lpython3.11
 
 CFLAGS+=$(shell python-config --cflags) $(PYTHON_CFLAGS)
 LDFLAGS+=$(shell python-config --ldflags) $(PYTHON_LDFLAGS)
@@ -37,7 +37,7 @@ LDFLAGS+=$(shell python-config --ldflags) $(PYTHON_LDFLAGS)
 
 ##CFLAGS=-Wall -Wextra -I/usr/include/python3.10
 ## LDFLAGS=-L/usr/lib/python3.10 -lpython3.10
-LDFLAGS=-L/mnt/c/Python311/libs -lpython3.10
+LDFLAGS=-L/mnt/c/Python311/libs -lpython3.11
 
 
 .PHONY : s p d r rs clean 
@@ -117,5 +117,5 @@ depend.mk: $(CSRCS) $(CHDRS)
 
 -include $(MROOT)/mtl/config.mk
 -include depend.mk
--include usr/bin/python3.10
+-include usr/bin/python3.11
 -include mnt/c/Python311/libs
