@@ -15,8 +15,8 @@ MARKER_SIZE = 4
 DPI = 300
 LINE_STYLE = "-"
 CACTUSPLOT_MARKER = "x"
-PATH = os.path.join('/mnt/c/Abschlussarbeit/GitGLUCOSE/CDCL-support-by-BDD-methods/cglucose/simp/Images/')
-
+#abs path
+PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Images')
 
 def plotFromC(data,time,name):
     plt.grid(True)
