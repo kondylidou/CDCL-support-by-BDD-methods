@@ -5,8 +5,11 @@ import matplotlib.pyplot as plt
 import os
 import matplotlib.ticker as ticker
 
-# plt.ioff()
-# plt.rcParams['lines.antialiased'] = True
+#####################################################################
+#           MAKE SURE YOU ARE IN /cglucose/simp                     #
+#           Saves some troubles!                                    #
+#####################################################################
+
 
 FIGURE_SIZE = (12, 12)
 GRID_COLOR = 'b'
@@ -17,11 +20,27 @@ DPI = 300
 LINE_STYLE = "-"
 CACTUSPLOT_MARKER = "x"
 
-# Change path to your correct simp folder - /cglucose/simp/ - After that add a new Folder for the log files to be saved.
-PATH_GLUC = os.path.join('/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/Gluc/')
-PATH_BDD = os.path.join('/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/BDD/')
-
-FILE_RAW = "rawDog.txt"
+def find_folder():
+    path_gluc = ""
+    path_bdd = ""
+    #Find Glucose Folder for saving...
+    workingDir = os.getcwd() + "/Tests"
+    glucose_folder = os.path.join(workingDir + "/GlucoseData")
+    bdd_folder = os.path.join(workingDir + "/BDDsData")
+    for root, dirs, files in os.walk(workingDir):
+        if glucose_folder in root:
+            path_gluc = os.path.join(root, glucose_folder + "/")
+            print("Found Glucose Folder at >>> " + glucose_folder + "/")
+            
+    for root, dirs, files in os.walk(workingDir):
+        if bdd_folder in root:
+            path_bdd = os.path.join(root, bdd_folder + "/")
+            print("Found BDD Folder at >>> " + bdd_folder)
+    
+    return path_gluc, path_bdd
+         
+PATH_GLUC, PATH_BDD = find_folder()
+FILE_RAW = "rawData.txt"
 
 dataListsFromC = []
 timeValuesFromC = []
@@ -38,14 +57,11 @@ current_path = ""
 ##########################################################################################################################################################################
 
 def plotFromC(data,time,name, clausesAtStart, clausesAtEnd, NumberOfVariables, longestClause, longestLearntClause, timeSolved, result, withBDD):
-    print(withBDD)
     if withBDD:
         current_path = PATH_BDD
-        print(current_path)
     else:
         current_path = PATH_GLUC
-        print(current_path)
-    
+
     dataListsFromC.append(data)
     timeValuesFromC.append(time)
     name_without_extension = name.split('$')[0]
@@ -56,7 +72,6 @@ def plotFromC(data,time,name, clausesAtStart, clausesAtEnd, NumberOfVariables, l
     iterateArgs(clausesAtStart, clausesAtEnd, NumberOfVariables, longestClause, longestLearntClause, timeSolved, result)
     
     if not os.path.exists(current_path + name_without_extension):
-    #If it doesn't exist, create the folder
         os.mkdir(current_path + name_without_extension)
         print(current_path + name_without_extension)
         

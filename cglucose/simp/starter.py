@@ -3,33 +3,85 @@ import subprocess
 from builtins import print
 import matplotlib.pyplot as plt
 
-plt.ioff()
-plt.rcParams['lines.antialiased'] = True
+#################################################################################################################
+#  This script takes a folder with the KNF Formulas and runs them, each once for Glucose then for the BDDS      #
+#                                                                                                               #
+#               #############################################################################                   #
+#               #                                                                           #                   #
+#               #       Also make sure to have a reasonable amount of Files to process :)   #                   #
+#               #                                                                           #                   #
+#               #############################################################################                   #
+#                                                                                                               #
+#              This file has been written by Danail Raykov, in case of questions, write me on Github!           #
+#################################################################################################################
+
+def create_root():
+    current_working_directory = os.getcwd()
+    if not os.path.exists(current_working_directory + "/Tests"):
+        os.mkdir(current_working_directory + "/Tests")
+        print("Created Root folder... >>> " + current_working_directory + "/Tests")
+        
+    if not os.path.exists(current_working_directory + "/Tests/GlucoseData"):
+        os.mkdir(current_working_directory + "/Tests/GlucoseData")
+        print("Created Folder for Glucose data for your Plots and tests >>> " + current_working_directory + "/Tests/GlucoseData")
+        
+    if not os.path.exists(current_working_directory + "/Tests/BDDsData"):
+        os.mkdir(current_working_directory + "/Tests/BDDsData")
+        print("Created Folder for BDDs for your Plots and tests >>> " + current_working_directory + "/Tests/BDDsData")        
+        
+create_root()
+
+# Path to the .cnf files - Search up some CNF files and put them together in a folder! Change to your Folder that contains your cnf files!
+PATH_TO_CNF_FILES = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/tester'
+ROOT_FOLDER = os.path.join(os.getcwd()+ "/Tests")
+
+
+def createNeededFolders():
+    if not os.path.exists(ROOT_FOLDER + "/KEYWORDS_plots"):
+        os.mkdir(ROOT_FOLDER + "/KEYWORDS_plots")
+        print("Created Folder for Keywords Plots data for your Plots and tests >>> " + ROOT_FOLDER + "/KEYWORDS_plots")
+    
+    if not os.path.exists(ROOT_FOLDER + "/Plots"):
+        os.mkdir(ROOT_FOLDER + "/Plots")
+        print("Created Folder for Plots >>> " + ROOT_FOLDER + "/Plots")
+        
+    if not os.path.exists(ROOT_FOLDER + "/FirstLinesExtracted"):
+        os.mkdir(ROOT_FOLDER + "/FirstLinesExtracted")
+        print("Created Folder for First Line extraction... >>> " + ROOT_FOLDER + "/Plots")
+        
+              
+createNeededFolders()     
+
+   
+
+
 
 # Change path to your correct simp folder - /cglucose/simp/ - After that add a new Folder for the log files to be saved.
-PATH_GLUC = os.path.join('/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/Gluc/')
-PATH_BDD = os.path.join('/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/BDD/')
+PATH_GLUC = os.path.join(ROOT_FOLDER + "/GlucoseData/")
+PATH_BDD = os.path.join(ROOT_FOLDER + "/BDDsData/")
 
-# Save the gotten data from the log files in single rows, for better Data analysis - These paths are used for the Data that you accumulated during the runtime!
-SAVE_FILE_GLUC_KEYWORDS = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/compressedFirstLines/Glucose_KeyWords.txt'
-SAVE_FILE_BDD_KEYWORD = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/compressedFirstLines/BDD_Keywords.txt'
+# Save the gotten data from the log files in single rows, for better Data analysis - These paths are used for the Data that you accumulated during the runtime!  BDD_Keywords.txt
+SAVE_FILE_GLUC_KEYWORDS = os.path.join(ROOT_FOLDER + "/FirstLinesExtracted/Glucose_KeyWords.txt")
+SAVE_FILE_BDD_KEYWORD = os.path.join(ROOT_FOLDER + "/FirstLinesExtracted/BDD_Keywords.txt")
 
 # The keywords that are contained in the file
 keywords = ['restarts:','conflicts:','decisions:','conflicLiterals:','blockedRestarts:','reducedDatabase:','propagations:']
 
 # The name of your Log files
-FILE_EXTENSION = "/rawDog.txt"
+FILE_EXTENSION = "/rawData.txt"
 
-# Location where you want your Plots to be saved
-SAVE_FILE_GLUC = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/compressedFirstLines/Glucose_ImportantInfoLine.txt'
-SAVE_FILE_BDD = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/compressedFirstLines/BDD_ImportantInfoLine.txt'
+# Location where you want your extracted info is
+SAVE_FILE_GLUC = os.path.join(ROOT_FOLDER + "/FirstLinesExtracted/Glucose_ImportantInfoLine.txt")
+print(SAVE_FILE_GLUC)
+SAVE_FILE_BDD = os.path.join(ROOT_FOLDER + "/FirstLinesExtracted/BDD_ImportantInfoLine.txt")
+print(SAVE_FILE_GLUC)
 
 # Paths where you want to save the Plots for each Keyword >> ['restarts', 'conflicts', 'decisions', 'conflicLiterals', 'blockedRestarts', 'reducedDatabase', 'propagations']
 # For each Keyword, a plot will be generated, to see the difference in both of the calculations
-KEYWORDS_PLOT_SAVEPATH = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/KEYWORDS_plots/'
+KEYWORDS_PLOT_SAVEPATH = os.path.join(ROOT_FOLDER + "/KEYWORDS_plots/")
 
 # Path to see the mean value of the Data
-MEAN_SAVEPATH = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/'
+MEAN_SAVEPATH = ROOT_FOLDER
 
 FIGURE_SIZE = (10, 10)
 GRID_COLOR = 'b'
@@ -39,26 +91,9 @@ LINE_STYLE = "-"
 CACTUSPLOT_MARKER = "x"
 
 # Savepath for the 
-SAVE_PATH_IMPINFOPLOTS = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/TestForREfac/Plots/'
+SAVE_PATH_IMPINFOPLOTS = os.path.join(ROOT_FOLDER + "/Plots/")
 
-
-#################################################################################################################
-#  This script takes a folder with the KNF Formulas and runs them, each once for Glucose then for the BDDS      #
-#                                                                                                               #
-#               #############################################################################                   #
-#               #       !!! Make sure to change the paths in the plotter.py file !!!        #                   #
-#               #                                                                           #                   #
-#               #       Also make sure to have a reasonable amount of Files to process :)   #                   #
-#               #############################################################################                   #
-#                                                                                                               #
-#              This file has been written by Danail Raykov, in case of questions, write me on Github!           #
-#################################################################################################################
-
-# Path to the .cnf files
-folder_path = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/tester'
-files = os.listdir(folder_path)
-
-print(files)
+files = os.listdir(PATH_TO_CNF_FILES)
 
 # Path to the Glucose executable
 executable_path = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/glucose'
@@ -68,7 +103,7 @@ def calc_files(startBDDs):
     index = 0
     for file in files:
         # If you want to work with the full file path, join it with the folder path
-        file_path = os.path.join(folder_path, file)
+        file_path = os.path.join(PATH_TO_CNF_FILES, file)
         print(file_path)
         if os.path.isfile(file_path):
             # Process the file here - File path is the argument that is being given to Glucose -- If you have other arguments to glucose, you can add them here
@@ -105,9 +140,10 @@ def startGluc_thenBDD():
     
     # Then with Glucose
     calc_files("false")
-    
-    
-# startGluc_thenBDD()
+
+
+# RUNNING GLUCOSE HERE!
+startGluc_thenBDD()
 
 
 #####################################################################################
@@ -260,6 +296,8 @@ def get_average(values):
 average_per_keyword_bdd = []
 average_per_keyword_gluc = []
 
+plt.ioff()
+plt.rcParams['lines.antialiased'] = True
 
 def print_data(solver_type, data, save_list):
     print('\n' + '##############################################')
@@ -305,7 +343,7 @@ def create_table():
     table.scale(1.2, 1.2)
     fig.subplots_adjust(left=0.73)
     ax.axis('off')
-    plt.savefig(MEAN_SAVEPATH + "MeanValues.png")
+    plt.savefig(ROOT_FOLDER + "/MeanValues.png")
     plt.close()
 
 create_table()
