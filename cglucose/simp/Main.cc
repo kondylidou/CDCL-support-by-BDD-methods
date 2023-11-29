@@ -87,9 +87,8 @@ extern "C"
 
 BddVarOrdering *init_rust(const char *filePath)
 {
-
     // Load the Rust dynamic library
-    void *rust_lib = dlopen("/mnt/c/Abschlussarbeit/GitGLUCOSE/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+    void *rust_lib = dlopen("/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
 
     if (!rust_lib)
     {
@@ -127,6 +126,7 @@ BddVarOrdering *init_rust(const char *filePath)
     // Unload the Rust library
     dlclose(rust_lib);
     return bdd_var_ordering;
+    return 0;
 }
 
 static const char *_certified = "CORE -- CERTIFIED UNSAT";
@@ -183,8 +183,8 @@ static Solver::ListForInstances lists;
 // Tracks the number of the instanc and the time taken
 std::vector<std::tuple<int, double>> instances;
 
-// TODO: anzahl an klauseln am anfang und ende
-void saveToList(Solver & S, std::string instanceName, int clausesStart, int varsAtStart, double cpuTime, std::string boolVal) {
+// Saves the accumulated data
+void saveToList(Solver& S, std::string instanceName, int clausesStart, int varsAtStart, double cpuTime, std::string boolVal) {
 
   S.vecList.emplace_back(std::make_tuple(S.restarts, "$restarts"));
   S.vecList.emplace_back(std::make_tuple(S.conf, "$conflicts"));
@@ -193,7 +193,7 @@ void saveToList(Solver & S, std::string instanceName, int clausesStart, int vars
   S.vecList.emplace_back(std::make_tuple(S.blockedRestarts, "$blockedRestarts"));
   S.vecList.emplace_back(std::make_tuple(S.reducedDatabase, "$reducedDatabase"));
   S.vecList.emplace_back(std::make_tuple(S.propags, "$propagations"));
-  lists.emplace_back(std::make_tuple(S.vecList, instanceName, clausesStart, S.nClauses(), varsAtStart, S.longestClauseSizePreStart, S.longestClauseSizeLearnts, cpuTime, boolVal));
+  lists.emplace_back(std::make_tuple(S.vecList, instanceName, clausesStart, S.nClauses(), varsAtStart, S.longestClauseSizePreStart, S.longestClauseSizeLearnts, cpuTime, boolVal, S.startWithBDD));
 
   S.vecList.clear();
 }
@@ -270,60 +270,25 @@ int main(int argc, char **argv)
         if (argc == 1)
             printf("c Reading from standard input... Use '--help' for help.\n");
 
-        FILE *res = (argc >= 3) ? fopen(argv[argc - 1], "wb") : NULL;
+        FILE *res = (argc >= 4) ? fopen(argv[argc - 1], "wb") : NULL;
 
         // Change to signal-handlers that will only notify the solver and allow it to terminate
         // voluntarily:
         signal(SIGINT, SIGINT_interrupt);
         signal(SIGXCPU, SIGINT_interrupt);
 
-        /*
-        Put the names of the cnf file in the filePaths array, can be done better of course,
-        but for testing purpose it is made that simple. Future improvement will be done.
-        */
-
-        const char* pathToFiles = "/mnt/c/Abschlussarbeit/GitGLUCOSE/CDCL-support-by-BDD-methods/benchmarks/testFolder/";
-
-        try {
-        // Check if the specified path exists and is a directory
-        if (filesystem::is_directory(pathToFiles)) {
-        // Iterate through all files in the directory
-        for (const auto & entry: filesystem::directory_iterator(pathToFiles)) {
-          if (std::filesystem::is_regular_file(entry)) {
-            // Construct the full path as a string
-            std::string fullPath = entry.path().string();
-            // Convert the string to a const char* and add it to the vector
-            filePaths.push_back(fullPath);
-          }
-        }
-        if (filePaths.empty()) {
-          std::cerr << "No files found in the specified directory." << std::endl;
-        }
-      } else {
-        std::cerr << "The specified path is not a directory." << std::endl;
-      }
-    } catch (const std::filesystem::filesystem_error & e) {
-      std::cerr << "Error: " << e.what() << std::endl;
-    }
-
-        if (argc == 2)
-        {
-            // Loop trough the files and create a new solver for each file
-            for (int i = 0; i < 30; ++i)
-            {
+            const char* path = argv[1];
                 SimpSolver S = SimpSolver();
-                double initial_time = cpuTime();
-
                 S.parsing = 1;
                 S.verbosity = verb;
                 S.verbEveryConflicts = vv;
                 S.showModel = mod;
                 S.certifiedUNSAT = opt_certified;
 
-                const char* filePath = filePaths[i].c_str();
-                gzFile in = gzopen(filePath, "rb");
+                gzFile in = gzopen(path, "rb");
                 parse_DIMACS(in, S);
                 gzclose(in);
+                
 
                 int varsAtStart = S.nVars();
                 int clausesAtStart = S.nClauses();
@@ -397,8 +362,18 @@ int main(int argc, char **argv)
                         printStats(S);
                     exit(0);
                 }
-                std::cout<<"Currently solving : " << i << filePath<<std::endl;
-                BddVarOrdering *bdd_var_ordering = init_rust(filePath);
+
+                if (argc >= 3){
+                std::string withBDD = argv[2];
+                if(withBDD == "true"){
+                    std::cout<<"YES WE SOLVINF WITH BDD"<< path <<std::endl;
+                    S.startWithBDD = true;
+                } else {
+                    S.startWithBDD = false;
+                }
+                }
+                std::cout<<"Currently solving : " << path <<std::endl;
+                BddVarOrdering *bdd_var_ordering = init_rust(path);              
                 vec<Lit> dummy;
                 lbool ret = S.solveLimited(bdd_var_ordering, dummy);
 
@@ -408,29 +383,21 @@ int main(int argc, char **argv)
                     printf("\n");
                 }
                 printf(ret == l_True ? "s SATISFIABLE\n" : ret == l_False ? "s UNSATISFIABLE\n" : "s INDETERMINATE\n");
-                std::filesystem::path pathObj(filePaths[i]);
+                std::filesystem::path pathObj(path);
                 std::string filenameWithoutExtension = pathObj.stem().string();
                 double timeUsed = cpuTime() - initial_time;
                 std::string boolVal = ret == l_True ? std::string("SAT") : ret == l_False ? std::string("UNSAT") : std::string("indeterminate");
                 saveToList(S, filenameWithoutExtension, clausesAtStart, varsAtStart, timeUsed, boolVal);
-                instances.emplace_back(i + 1, timeUsed);
-
-                if(i % 2 == 0){
-                    std::cout<<"Saving 10 results..."<<std::endl;
-                    vectorToPython(lists);
-                    lists.clear();
-                    std::cout<<"List size: " << lists.size()<<std::endl;
-                }
-            }
-            vectorToPython(lists);
-            solvedInstances(instances);
-        }
+                instances.emplace_back(0, timeUsed);
+                std::cout<<"Solved file : " << path << std::endl;
+                vectorToPython(lists);
+                lists.clear();
+        
     }
     catch (OutOfMemoryException &)
     {
         printf("c =========================================================================================================\n");
         printf("INDETERMINATE\n");
         exit(0);
-    }
-    
+    } 
 }

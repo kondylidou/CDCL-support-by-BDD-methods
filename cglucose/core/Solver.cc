@@ -1054,9 +1054,13 @@ NextClause:
 
     propagations += num_props;
     simpDB_props -= num_props;
-
+    dataLimPropags++;
     //When propagate is called, safe the time and the number of propagations in *propags*
-    propags.emplace_back(std::make_tuple(propagations,cpuTime()));
+    if(dataLimPropags % 20 == 0){
+        propags.emplace_back(std::make_tuple(propagations,cpuTime()));
+    }
+
+   
 
     return confl;
 }
@@ -1355,6 +1359,7 @@ lbool Solver::search(int nof_conflicts) {
                 nbUn++;
                 parallelExportUnaryClause(learnt_clause[0]);
             } else {
+                canAdd = false;
                 CRef cr = ca.alloc(learnt_clause, true);                
                 ca[cr].setLBD(nblevels);
                 ca[cr].setOneWatched(false);
@@ -1362,6 +1367,10 @@ lbool Solver::search(int nof_conflicts) {
                 if (nblevels <= 2) nbDL2++; // stats
                 if (ca[cr].size() == 2) nbBin++; // stats
                 learnts.push(cr);
+
+                if(learnts.size() > longestClauseSizeLearnts){
+                    longestClauseSizeLearnts = learnts.size();
+                }
 
                 // -------------------------------------------
                 //for (int i=0; i<learnt_clause.size(); i++) {
@@ -1376,6 +1385,7 @@ lbool Solver::search(int nof_conflicts) {
                 //parallelExportLearntClauseDuringSearch(learnt_clause);
                 claBumpActivity(ca[cr]);
                 uncheckedEnqueue(learnt_clause[0], cr);
+                canAdd = true;
             }
 
             varDecayActivity();
@@ -1429,7 +1439,10 @@ lbool Solver::search(int nof_conflicts) {
             if (next == lit_Undef) {
                 // New variable decision:
                 decisions++;
-                dec.emplace_back(std::make_tuple(decisions,cpuTime()));
+                dataLimDecisions++;
+                if(dataLimDecisions % 20 == 0){
+                    dec.emplace_back(std::make_tuple(decisions,cpuTime()));
+                }
                 next = pickBranchLit();
                 if (next == lit_Undef) {
                     //printf("c last restart ## conflicts  :  %d %d \n", conflictC, decisionLevel());
@@ -1463,7 +1476,9 @@ void Solver::translateLearntClauses(std::vector<int> learnt_clauses) {
         if (lit == 0) {
             // If 0 is encountered, finalize the current clause and start a new one
             if (tmp_clause.size() > 0) {
+                tmp_clause.push(mkLit(0));
                 addLearntClause(tmp_clause);
+                //std::cout<<"added clause"<<std::endl;
                 tmp_clause.clear();
                 //printf("Wrote clause %d in BDD clauses.\n", i);
             }
@@ -1482,11 +1497,13 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
     else if (learnt_clause.size() == 1) {
         uncheckedEnqueue(learnt_clause[0]);
     } else {
-        CRef cr = ca.alloc(learnt_clause, true);                
-        ca[cr].setLBD(3);
+        CRef cr = ca.alloc(learnt_clause, true);  
+        Clause& c = ca[cr];
+        int nblevels = computeLBD(c);
+        c.setLBD(nblevels);
         ca[cr].setOneWatched(false);
-		ca[cr].setSizeWithoutSelectors(learnt_clause.size());
-        //ca[cr].setCanBeDel(false);
+		ca[cr].setSizeWithoutSelectors(learnt_clause.size()-1);
+        //ca[cr].setCanBeDel(true);
         learnts.push(cr);
         attachClause(cr);
         bdd_clauses.emplace_back(cr);
@@ -1496,7 +1513,7 @@ bool Solver::addLearntClause(vec<Lit>& learnt_clause) {
 
 // Load the Rust library
 void* Solver::loadRustLibrary() {
-    void* rust_lib = dlopen("/mnt/c/Abschlussarbeit/GitGLUCOSE/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
+    void* rust_lib = dlopen("/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/target/release/librust_lib.so", RTLD_LAZY); // Update the path accordingly
     if (!rust_lib) {
         std::cerr << "Error loading Rust library: " << dlerror() << std::endl;
         return NULL;
@@ -1508,38 +1525,6 @@ void Solver::unloadRustLibrary(void* rust_lib) {
     // Unload the Rust library
     dlclose(rust_lib);
 }
-
-/************************************************************************************/
-/****************************Danail**************************************************/
-/************************************************************************************/
-
-
-// Writes learnt clause from the BDD vector to the learnt clauses vector
-void Solver::writeLearntClause(CRef cr){
-    learnts.push(cr);
-    attachClause(cr);
-    lastLearntClause = cr; // Use in multithread (to hard to put inside ParallelSolver)
-    parallelExportClauseDuringSearch(ca[cr]);
-    //claBumpActivity(ca[cr]);
-}
-
-// Iterates trough the bddClauses vector and performs the action to add the lit to the learnts
-void Solver::iterateTroughBDDClauses(){
-    int learntClausesSize = bdd_clauses.size();
-
-    for(int i = 0; i < learntClausesSize; i++){
-        CRef currentRef = bdd_clauses[i];
-        writeLearntClause(currentRef);
-        Clause& clause = ca[bdd_clauses[i]];
-        Lit p = clause[0];
-        //uncheckedEnqueue(p, currentRef);
-    }
-}
-
-
-/************************************************************************************/
-/************************************************************************************/
-/************************************************************************************/
 
 double Solver::progressEstimate() const {
     double progress = 0;
@@ -1587,7 +1572,6 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
              if(closeThread){
                 break;
             }
-            std::cout<<i<<std::endl;
         }
 
         if(!closeThread){
@@ -1651,7 +1635,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
       printf("c =========================================================================================================\n");
     }
 
-    // add a test clause
+    //add a test clause
     internal_learnts.push_back(0);
     size_t iLearntsSize = internal_learnts.size();
     int* iLearntsPtr = internal_learnts.data();
@@ -1663,12 +1647,9 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
         status = search(0); // the parameter is useless in glucose, kept to allow modifications
         if (!withinBudget()) break;
         curr_restarts++;
-
-
-        // lk
-
+    // lk
     // Call Rust 
-
+    if (startWithBDD){
     // Get a pointer to the Rust functions
     auto stop_rust_function = reinterpret_cast<void*(*)()>(dlsym(rust_lib, "stop_rust_function"));
     auto continue_rust_function = reinterpret_cast<void*(*)()>(dlsym(rust_lib, "continue_rust_function"));
@@ -1691,7 +1672,6 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
             auto rust_data = rust_run(bdd_var_ordering, bdd_buckets, bdd_clause_database, iLearntsPtr, iLearntsSize);
             const int* vector_data = std::get<0>(rust_data);
             size_t vec_length = std::get<1>(rust_data);
-
             // std::cout<<"------------------------"<<std::endl;
             // std::cout<<vec_length<<std::endl;
             // std::cout<<"------------------------"<<std::endl;
@@ -1702,7 +1682,8 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
                    // printf("The vector of learnt clauses in Rust is empty.\n");
                 } else {
                     this->tmp_learnts = modifiedVectorFromRust;
-                   // printf("Created the vector of learnt clauses in Rust.\n");
+                    //printf("Created the vector of learnt clauses in Rust.\n");
+                    
                 }
             } else {
                // printf("Failed to create the vector of learnt clauses in Rust.\n");
@@ -1711,6 +1692,7 @@ lbool Solver::solve_(BddVarOrdering* bdd_var_ordering, bool do_simp, bool turn_o
 
         // Wait for the Rust thread to finish
         rust_thread.join();
+            }
         }
     }
     closeThread = true;

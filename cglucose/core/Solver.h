@@ -258,9 +258,7 @@ public:
 
     using VecTuple = std::vector<std::tuple<uint64_t, double>>;
     using VecList = std::list<std::tuple<Solver::VecTuple, std::string>>;
-    using ListForInstances = std::list<std::tuple<VecList, std::string, int, int, int, int, int, double, std::string>>;
-
-    using BddClauses = std::list<std::vector<int>>;
+    using ListForInstances = std::list<std::tuple<VecList, std::string, int, int, int, int, int, double, std::string, bool>>;
 
     //For each instance, save the Vectors and the corresponding instanceName in here
     ListForInstances instanceList;
@@ -281,6 +279,9 @@ public:
     int time = 900;
     bool closeThread = false;
 
+    int dataLimPropags = 0;
+    int dataLimDecisions = 0;
+
 
 
     void changeStatus(bool status){
@@ -289,8 +290,11 @@ public:
 
     int longestClauseSizePreStart = 0;
     int longestClauseSizeLearnts = 0;
-    
 
+    int longestBDDClause = 0;
+    bool canAdd = false;
+    
+    bool startWithBDD = false;
 
 /*
 **************************************************************

@@ -7,5 +7,3 @@ using namespace Glucose;
 
 void vectorToPython(Solver::ListForInstances);
 
-void solvedInstances(std::vector<std::tuple<int, double>>);
-
