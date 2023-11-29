@@ -15,6 +15,12 @@ import matplotlib.pyplot as plt
 #              This file has been written by Danail Raykov, in case of questions, write me on Github!           #
 #################################################################################################################
 
+#############################################################################################################################################
+# Path to the .cnf files - Search up some CNF files and put them together in a folder! Change to your Folder that contains your cnf files!   
+# This is the only path you need to change!
+PATH_TO_CNF_FILES = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/tester'
+#############################################################################################################################################
+
 def create_root():
     current_working_directory = os.getcwd()
     if not os.path.exists(current_working_directory + "/Tests"):
@@ -31,11 +37,7 @@ def create_root():
         
 create_root()
 
-# Path to the .cnf files - Search up some CNF files and put them together in a folder! Change to your Folder that contains your cnf files!
-PATH_TO_CNF_FILES = '/home/admin/Abschlussarbeit/CDCL-support-by-BDD-methods/cglucose/simp/tester'
 ROOT_FOLDER = os.path.join(os.getcwd()+ "/Tests")
-
-
 def createNeededFolders():
     if not os.path.exists(ROOT_FOLDER + "/KEYWORDS_plots"):
         os.mkdir(ROOT_FOLDER + "/KEYWORDS_plots")
